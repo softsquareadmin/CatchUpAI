@@ -165,6 +165,7 @@ def drain_session_events():
         st.session_state.pending_report = None
 
 
+@st.fragment
 def recorder_controls():
     session = st.session_state.live
     active = session is not None and session.running
@@ -173,7 +174,8 @@ def recorder_controls():
     with st.container(key="capture_card"):
         with st.container(key="capture_header"):
             panel_heading("Record or Upload a Conversation", "wave", strong=True)
-            st.button("Reset", key="reset_workspace", disabled=active, on_click=reset_workspace, help="Reset recording, uploaded file, and report. Keep your configuration.")
+            if st.button("Reset", key="reset_workspace", disabled=active, on_click=reset_workspace, help="Reset recording, uploaded file, and report. Keep your configuration."):
+                st.rerun()
         with st.container(key="capture_body"):
             record, upload = st.columns([1.43, 1], gap="small")
             with record, st.container(key="record_action"):
@@ -215,6 +217,10 @@ def recorder_controls():
                 upload_recording(config, disabled=active or error is not None)
     if error:
         st.warning(f"Update Configurations before starting: {error}")
+    # Refresh navigation and reports only when the session changes running state.
+    current_session = st.session_state.live
+    if (current_session is not None and current_session.running) != running:
+        st.rerun()
 
 
 @st.fragment(run_every=1)
