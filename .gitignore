@@ -1,3 +1,4 @@
 .sf
 __pycache__
 .env
+.venv

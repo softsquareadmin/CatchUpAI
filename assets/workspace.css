@@ -3,6 +3,8 @@
 .stApp::before { content:""; position:fixed; top:0; left:0; right:0; height:62px; box-sizing:border-box; background:#fff; border-bottom:1px solid var(--line); z-index:99; pointer-events:none; }
 .stApp, button, input, textarea, select { font-family:Arial,Helvetica,sans-serif; }
 .stApp p, .stApp h1, .stApp h2, .stApp h3 { font-family:Arial,Helvetica,sans-serif; }
+/* Remove heading permalink controls so they cannot trigger anchor scrolling. */
+.stApp [data-testid="stHeaderActionElements"] a { display:none!important; }
 [data-testid="stElementContainer"]:has(.top-brand) { height:0; margin-top:-20px; }
 [data-testid="stHeader"] { height:62px; min-height:62px; box-sizing:border-box; background:#fff; border-bottom:1px solid var(--line); }
 .top-brand { position:fixed; top:17px; left:30px; display:flex; align-items:center; gap:12px; color:var(--ink); font-size:22px; font-weight:700; line-height:28px; pointer-events:none; }
