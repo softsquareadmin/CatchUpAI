@@ -4,12 +4,15 @@
   "name": "Interview",
   "config": {
     "conversation": {
-      "purpose": "Track the conversation against its intended goals, capture key information, and identify important questions that remain unasked or need clearer answers. Suggest follow-up questions to close these gaps.",
+      "purpose": "Track the interview against its goals, capture the candidate’s experience and skills, and identify important topics that remain unanswered or need clarification. Suggest follow-up questions to help the interviewer assess the candidate’s suitability for the role.",
       "pay_attention_to": [
-        "Important facts",
-        "Questions",
-        "Decisions",
-        "Unresolved items"
+        "Relevant experience and technical skills",
+        "Personal contributions and project outcomes",
+        "Problem-solving approach and decision-making",
+        "Communication, teamwork, and ownership",
+        "Specific examples supporting the candidate’s claims",
+        "Vague, incomplete, or inconsistent answers",
+        "Important interview questions missed or left unanswered"
       ],
       "topics_to_cover": [
         {

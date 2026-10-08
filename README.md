@@ -23,6 +23,22 @@ configuration fields and below the template save controls.
 Templates are stored as JSON files in `configuration_templates/` and remain
 available after restarting the app. Template names must be unique.
 
+Under **Topics to cover**, choose **Upload** to import topics from a PDF, Word,
+text, Markdown, RTF or ODT document (up to 20 MB). Set the purpose first; only
+guidance relevant to that purpose is extracted. Review the suggestions,
+expand them to edit coverage criteria or see
+their source, and remove unwanted topics before choosing **Add selected topics**.
+Existing topics are retained; matching topic names receive any new criteria.
+Cancel closes the review without applying its suggestions.
+Topic lists scroll independently in the configuration page and upload review.
+Use the **×** at the right of a topic or report section, then confirm removal;
+choosing **Cancel** keeps the item.
+
+Document extraction uses the OpenAI Responses API with strict Structured Outputs
+and the existing `OPENAI_API_KEY`. The default model is `gpt-5.4-mini`; set
+`TOPIC_EXTRACTION_MODEL` in `.env` to use another model supporting file input and
+Structured Outputs. Documents are sent in full rather than clipped locally.
+
 CatchUp listens to conversations and helps you understand what you may have missed.
 
 It identifies important points, unanswered questions, action items, key details, and useful suggestions — so you can stay focused on the conversation instead of worrying about remembering everything.

@@ -15,7 +15,7 @@ from catchupai.models import default_config, normalize_section_ids, validate_con
 from catchupai.recording import recording_info
 from catchupai.report_export import build_report_document
 from catchupai.templates import list_templates, load_template, save_template, delete_template
-from catchupai.frontend import icon, inline_error
+from catchupai.frontend import icon, inline_error, dismiss_row_confirmation
 
 st.set_page_config(page_title="CatchUpAI", page_icon=str(Path(__file__).resolve().parent / "assets" / "icon.png"), layout="wide", initial_sidebar_state="expanded")
 workspace_styles()
@@ -90,6 +90,17 @@ def load_selected_template():
         st.session_state.template_notice = ("error", str(error))
 
 
+def cancel_template_changes():
+    try:
+        template = load_template(st.session_state.loaded_template_id)
+        apply_configuration(template["config"])
+        st.session_state.template_name = template["name"]
+        st.session_state.template_selection = template["id"]
+        st.session_state.template_picker_epoch = st.session_state.get("template_picker_epoch", 0) + 1
+    except (OSError, ValueError, TypeError) as error:
+        st.session_state.template_notice = ("error", str(error))
+
+
 def perform_template_deletion(template_id, name):
     try:
         delete_template(template_id)
@@ -97,20 +108,20 @@ def perform_template_deletion(template_id, name):
             st.session_state.loaded_template_id = None
         if st.session_state.get("template_selection") == template_id:
             st.session_state.template_selection = None
+        st.session_state.template_picker_epoch = st.session_state.get("template_picker_epoch", 0) + 1
         st.session_state.template_notice = ("success", f"Deleted {name}.")
     except (OSError, ValueError) as error:
         st.session_state.template_notice = ("error", str(error))
 
 
-@st.dialog("Delete template")
 def confirm_template_deletion(template_id, name):
-    st.write(f'Delete "{name}"? This removes the saved template. Your current configuration will stay in the editors.')
-    cancel, confirm = st.columns(2)
-    if cancel.button("Cancel", use_container_width=True):
-        st.rerun()
-    if confirm.button("Delete template", type="primary", use_container_width=True,
-                      on_click=perform_template_deletion, args=(template_id, name)):
-        st.rerun()
+    with st.container(key=f"confirm_remove_template_{template_id}"):
+        st.write(f'Delete "{name}"?')
+        cancel, confirm = st.columns(2)
+        cancel.button("Cancel", key=f"cancel_delete_template_{template_id}",
+                      on_click=dismiss_row_confirmation, args=(template_id,))
+        confirm.button("Delete template", key=f"confirm_delete_template_{template_id}", type="primary",
+                       on_click=perform_template_deletion, args=(template_id, name))
 
 
 def template_controls(disabled=False):
@@ -131,7 +142,7 @@ def template_controls(disabled=False):
             comparable_configuration(st.session_state.draft_config) != comparable_configuration(loaded["config"])
             or st.session_state.get("template_name", "").strip() != loaded["name"]
         )
-        title, loader, saver = st.columns([1.35, 2.7, 4.2], gap="small", vertical_alignment="top")
+        title, loader, saver = st.columns([1.35, 2.5, 4.8] if loaded_id else [1.35, 2.7, 4.2], gap="small", vertical_alignment="top")
         with title:
             st.markdown(f'<div class="template-toolbar-title"><span class="icon-tile">{icon("file")}</span><strong>Templates</strong></div>', unsafe_allow_html=True)
         with loader, st.container(key="template_load_group"):
@@ -146,15 +157,20 @@ def template_controls(disabled=False):
                     for template in templates:
                         choose, remove = st.columns([6, 1], vertical_alignment="center")
                         choose.button(template["name"], key=f"choose_template_{template['id']}", on_click=select_template, args=(template["id"],), use_container_width=True, disabled=disabled)
-                        if remove.button("", icon=":material/close:", key=f"remove_template_{template['id']}", help=f"Delete {template['name']}", disabled=disabled, use_container_width=True):
+                        epoch = st.session_state.get(f"remove_confirmation_epoch_{template['id']}", 0)
+                        with remove.popover("Delete template", icon=":material/close:", key=f"remove_template_{template['id']}_{epoch}", help=f"Delete {template['name']}", disabled=disabled):
                             confirm_template_deletion(template["id"], template["name"])
             load.button("Load", key="load_template", disabled=disabled or selection is None, on_click=load_selected_template, use_container_width=True)
             if errors or notice and notice[0] == "error":
                 inline_error(" ".join(errors + ([notice[1]] if notice and notice[0] == "error" else [])))
         with saver, st.container(key="template_save_group"):
-            name, save, secondary = st.columns([2.9, 1.8, 1.9] if loaded_id else [3.6, 1.8, 1.1], gap="small", vertical_alignment="bottom")
+            if loaded_id:
+                name, cancel, save, secondary = st.columns([2.8, 1.2, 1.9, 1.9], gap="small", vertical_alignment="bottom")
+            else:
+                name, save, secondary = st.columns([3.6, 1.8, 1.1], gap="small", vertical_alignment="bottom")
             name.text_input("Template name", key="template_name", placeholder="e.g. Technical Interview", disabled=disabled)
             if loaded_id:
+                cancel.button("Cancel", key="cancel_template_changes", on_click=cancel_template_changes, disabled=disabled or not changed, use_container_width=True)
                 update_clicked = save.button("Save changes", key="update_template", type="primary", disabled=disabled or not changed, use_container_width=True)
                 save_clicked = secondary.button("Save as new", key="save_new_template", disabled=disabled, use_container_width=True)
             else:

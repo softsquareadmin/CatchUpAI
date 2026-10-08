@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TOPIC_EXTRACTION_MODEL = os.getenv("TOPIC_EXTRACTION_MODEL", "gpt-5.4-mini")
 
 MODEL = "gpt-realtime-2.1"
 OPENAI_SAMPLE_RATE = 24000

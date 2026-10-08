@@ -3,6 +3,6 @@ sounddevice
 numpy
 scipy
 python-dotenv
-streamlit>=1.45,<2
+streamlit>=1.65,<2
 jsonschema>=4.23,<5
 soundfile>=0.13,<1

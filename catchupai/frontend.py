@@ -1,6 +1,9 @@
 """Reusable Streamlit configuration controls and report renderer."""
 
 import uuid
+import copy
+import hashlib
+from contextlib import contextmanager
 from html import escape
 from pathlib import Path
 from math import cos, sin, radians
@@ -9,6 +12,7 @@ import streamlit as st
 
 from .models import FIELD_TYPES, normalize_section_ids, validate_report_sections
 from .topic_coverage import COVERAGE_CSS, topic_coverage_html
+from .document_topics import DOCUMENT_TYPES, extract_document_topics, merge_imported_topics
 
 
 def editable_row(value):
@@ -98,6 +102,138 @@ def preview_cards(config):
     st.markdown(f'<div class="preview-grid">{top}</div><div class="preview-report-heading"><h2>Report Sections</h2><p>These sections define what CatchUpAI will include in the generated report and how each section should be formatted.</p></div>{"".join(rows)}', unsafe_allow_html=True)
 
 
+def remove_editor_row(state_key, row_key):
+    st.session_state[state_key] = [r for r in st.session_state[state_key] if r["key"] != row_key]
+
+
+def dismiss_row_confirmation(row_key):
+    key = f"remove_confirmation_epoch_{row_key}"
+    st.session_state[key] = st.session_state.get(key, 0) + 1
+
+
+@contextmanager
+def removable_expander(title, row_key, state_key, kind="topic", disabled=False):
+    with st.container(key=f"edit_row_{row_key}", border=False):
+        with st.expander(title, expanded=False):
+            yield
+        epoch = st.session_state.get(f"remove_confirmation_epoch_{row_key}", 0)
+        with st.popover(f"Remove {kind}", icon=":material/close:", disabled=disabled,
+                        key=f"row_close_{row_key}_{epoch}"):
+            with st.container(key=f"confirm_remove_{row_key}"):
+                st.write(f'Remove "{title}"?')
+                cancel, confirm = st.columns(2)
+                cancel.button("Cancel", key=f"cancel_remove_{row_key}", on_click=dismiss_row_confirmation, args=(row_key,))
+                confirm.button(f"Remove {kind}", key=f"confirm_remove_button_{row_key}", type="primary",
+                               on_click=remove_editor_row, args=(state_key, row_key), disabled=disabled)
+
+
+def confirm_imported_topics():
+    imported = []
+    for row in st.session_state.topic_import_review:
+        topic = row["value"]
+        key = row["key"]
+        label = st.session_state.get(f"import_label_{key}", topic["label"])
+        criteria = st.session_state.get(f"import_criteria_{key}", "\n".join(topic["criteria"]))
+        imported.append({"label": label.strip(), "criteria": [c.strip() for c in criteria.splitlines() if c.strip()]})
+    rows = st.session_state.topic_rows
+    try:
+        merged = merge_imported_topics([row["value"] for row in rows], imported)
+    except ValueError as error:
+        st.session_state.topic_import_review_error = str(error)
+        return
+    by_id = {row["value"]["id"]: row for row in rows}
+    for topic in merged:
+        if topic["id"] in by_id:
+            row = by_id[topic["id"]]
+            if row["value"] != topic:
+                row["value"] = topic
+                st.session_state[f"topic_criteria_{row['key']}"] = "\n".join(topic["criteria"])
+        else:
+            rows.append(editable_row(topic))
+    st.session_state.draft_config["conversation"]["topics_to_cover"] = copy.deepcopy(merged)
+    st.session_state.pop("topic_import_review", None)
+    st.session_state.topic_import_notice = "Added the selected document topics to your configuration."
+    st.session_state.topic_import_confirmed = True
+
+
+@st.dialog("Import topics from a document", width="large")
+def topic_import_dialog():
+    # The confirmation callback consumes the review before this fragment renders.
+    # Close immediately so disabling the now-empty confirm button cannot hide its click.
+    if st.session_state.pop("topic_import_confirmed", False):
+        st.rerun()
+    context = st.session_state.topic_import_context
+    with st.container(key="topic_import_content"):
+        st.markdown('<p class="import-description">Extract topics that match your purpose, then review them before adding them.</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="import-purpose"><svg viewBox="0 0 24 24" aria-hidden="true">'
+            '<circle cx="12" cy="12" r="11" fill="currentColor"/>'
+            '<path d="M12 10v7" stroke="white" stroke-width="2" stroke-linecap="round"/>'
+            '<circle cx="12" cy="6.5" r="1.25" fill="white"/></svg>'
+            f'<p><strong>Purpose:</strong> {escape(context["purpose"])}</p></div>',
+            unsafe_allow_html=True,
+        )
+        uploaded = st.file_uploader("Upload a document", type=list(DOCUMENT_TYPES),
+                                    key=f"topic_import_file_{context['key']}", max_upload_size=20)
+        if uploaded is not None:
+            data = uploaded.getvalue()
+            fingerprint = hashlib.sha256(data + uploaded.name.encode("utf-8")).hexdigest()
+            changed_file = fingerprint != st.session_state.get("topic_import_fingerprint")
+            retry = False
+            if not changed_file and st.session_state.get("topic_import_error"):
+                inline_error(st.session_state.topic_import_error)
+                retry = st.button("Try extraction again", key="retry_topic_import")
+            if changed_file or retry:
+                st.session_state.topic_import_fingerprint = fingerprint
+                st.session_state.topic_import_review = []
+                st.session_state.topic_import_error = ""
+                try:
+                    with st.spinner("Reading the document and extracting relevant topics…"):
+                        topics = extract_document_topics(uploaded.name, data, context["purpose"], context["existing_topics"])
+                    st.session_state.topic_import_review = [editable_row(t) for t in topics]
+                except ValueError as error:
+                    st.session_state.topic_import_error = str(error)
+                    inline_error(str(error))
+            review = st.session_state.get("topic_import_review", [])
+            if not st.session_state.get("topic_import_error"):
+                if not review:
+                    st.caption("No topics to add. The document may have no matching guidance, its topics may already be covered, or all suggestions were removed.")
+                else:
+                    st.markdown(f"**Review {len(review)} extracted topic{'s' if len(review) != 1 else ''}**")
+            invalid = False
+            with st.container(key="import_topics_scroll", border=False):
+                for row in review:
+                    topic = row["value"]
+                    key = row["key"]
+                    with removable_expander(topic["label"] or "Untitled topic", key, "topic_import_review"):
+                        label = st.text_input("Topic", value=topic["label"], key=f"import_label_{key}")
+                        criteria = st.text_area("Enough coverage means", value="\n".join(topic["criteria"]), key=f"import_criteria_{key}", height=110)
+                        row["value"] = {**topic, "label": label.strip(), "criteria": [c.strip() for c in criteria.splitlines() if c.strip()]}
+                        if not label.strip() or not row["value"]["criteria"]:
+                            invalid = True
+                            inline_error("Enter a topic name and at least one coverage criterion.")
+                        if topic["source_section"]:
+                            st.caption(f"Source: {topic['source_section']}")
+                        st.markdown(f'<blockquote class="import-source">{escape(topic["source_excerpt"])}</blockquote>', unsafe_allow_html=True)
+        else:
+            st.session_state.topic_import_review = []
+            st.session_state.topic_import_fingerprint = None
+            st.session_state.topic_import_error = ""
+            review, invalid = [], False
+    with st.container(key="topic_import_footer"):
+        if st.session_state.get("topic_import_review_error"):
+            inline_error(st.session_state.topic_import_review_error)
+        cancel, _, confirm = st.columns([1, 2.25, 1.4], gap="small")
+        if cancel.button("Cancel", key="cancel_topic_import", use_container_width=True):
+            st.session_state.pop("topic_import_review", None)
+            st.rerun()
+        confirm_clicked = confirm.button("Add selected topics", key="confirm_topic_import", type="primary", use_container_width=True,
+                          disabled=not review or invalid or bool(st.session_state.get("topic_import_error")),
+                          on_click=confirm_imported_topics)
+        if confirm_clicked and st.session_state.get("topic_import_confirmed"):
+            st.rerun()
+
+
 def conversation_editor(config, disabled=False):
     panel_heading("Conversation Configuration", "settings")
     field_heading("Purpose", "Describe what you want to achieve with the conversation analysis. This helps guide the AI in capturing the right information.")
@@ -119,24 +255,39 @@ def conversation_editor(config, disabled=False):
         st.session_state.topic_rows = [editable_row(t) for t in config.get("topics_to_cover", [])]
     topics = []
     topic_errors = []
-    for row in st.session_state.topic_rows:
-        key = row["key"]
-        topic = row["value"]
-        with st.expander(topic.get("label") or "New topic", expanded=False):
-            label = st.text_input("Topic", value=topic.get("label", ""), key=f"topic_label_{key}", placeholder="Project ownership", disabled=disabled)
-            criteria = st.text_area("Enough coverage means", value="\n".join(topic.get("criteria", [])), key=f"topic_criteria_{key}", placeholder="Their responsibility\nTheir personal contribution\nThe outcome", help="One required detail per line. Green requires all details; yellow means some information exists; red means no usable answer.", disabled=disabled)
-            row["value"] = {"id": topic.get("id", f"topic_{key}"), "label": label.strip(), "criteria": [c.strip() for c in criteria.splitlines() if c.strip()]}
-            topics.append(row["value"])
-            if not label.strip():
-                topic_errors.append(f"Topic {len(topics)} needs a name.")
-            if not row["value"]["criteria"]:
-                topic_errors.append(f"{label.strip() or 'Topic ' + str(len(topics))} needs at least one coverage criterion.")
-            if st.button("Remove topic", key=f"remove_topic_{key}", disabled=disabled):
-                st.session_state.topic_rows.remove(row)
-                st.rerun()
-    if st.button("Add Topic", icon=":material/add:", disabled=disabled):
+    with st.container(key="configured_topics_scroll", border=False):
+        for row in st.session_state.topic_rows:
+            key = row["key"]
+            topic = row["value"]
+            with removable_expander(topic.get("label") or "New topic", key, "topic_rows", disabled=disabled):
+                label = st.text_input("Topic", value=topic.get("label", ""), key=f"topic_label_{key}", placeholder="Project ownership", disabled=disabled)
+                criteria = st.text_area("Enough coverage means", value="\n".join(topic.get("criteria", [])), key=f"topic_criteria_{key}", placeholder="Their responsibility\nTheir personal contribution\nThe outcome", help="One required detail per line. Green requires all details; yellow means some information exists; red means no usable answer.", disabled=disabled)
+                row["value"] = {"id": topic.get("id", f"topic_{key}"), "label": label.strip(), "criteria": [c.strip() for c in criteria.splitlines() if c.strip()]}
+                topics.append(row["value"])
+                if not label.strip():
+                    topic_errors.append(f"Topic {len(topics)} needs a name.")
+                if not row["value"]["criteria"]:
+                    topic_errors.append(f"{label.strip() or 'Topic ' + str(len(topics))} needs at least one coverage criterion.")
+    if st.session_state.get("topic_import_notice"):
+        st.toast(st.session_state.pop("topic_import_notice"))
+    with st.container(key="topic_actions"):
+        add_topic, upload_topics, _ = st.columns([1.1, 1, 2.5], gap="small")
+        add_clicked = add_topic.button("Add Topic", icon=":material/add:", disabled=disabled, use_container_width=True)
+        upload_clicked = upload_topics.button("Upload", icon=":material/upload_file:", key="upload_topics", disabled=disabled, use_container_width=True)
+    if add_clicked:
         st.session_state.topic_rows.append(editable_row({"label": "", "criteria": []}))
         st.rerun()
+    if upload_clicked:
+        if not purpose.strip():
+            inline_error("Enter a purpose before uploading a document.", topics_error)
+        else:
+            st.session_state.topic_import_context = {"key": uuid.uuid4().hex, "purpose": purpose.strip(), "existing_topics": copy.deepcopy(topics)}
+            st.session_state.topic_import_review = []
+            st.session_state.topic_import_fingerprint = None
+            st.session_state.topic_import_error = ""
+            st.session_state.topic_import_review_error = ""
+            st.session_state.topic_import_confirmed = False
+            topic_import_dialog()
     if topic_errors:
         inline_error(" ".join(topic_errors), topics_error)
     field_heading("Participant Roles", "Define participant roles to guide analysis. Speakers aren’t automatically identified.", "participants")
@@ -169,7 +320,7 @@ def report_editor(disabled=False, tracking_topics=False):
     for index, row in enumerate(rows):
         section = row["value"]
         key = row["key"]
-        with st.expander(f"{index + 1}. {section['label'] or 'Untitled section'}", expanded=False):
+        with removable_expander(f"{index + 1}. {section['label'] or 'Untitled section'}", key, "section_rows", kind="section", disabled=disabled):
             section_error = st.empty()
             label = st.text_input("Section Label", value=section["label"], key=f"label_{key}", disabled=disabled)
             left, right = st.columns(2)
@@ -210,15 +361,12 @@ def report_editor(disabled=False, tracking_topics=False):
                     raise ValueError("Choose another label; Topic coverage is reserved for topic tracking.")
             except ValueError as error:
                 inline_error(str(error).removeprefix("Report section 1: "), section_error)
-            up, down, delete = st.columns(3)
+            up, down = st.columns(2)
             if up.button("Move up", icon=":material/arrow_upward:", key=f"up_{key}", disabled=disabled or index == 0):
                 rows[index - 1], rows[index] = rows[index], rows[index - 1]
                 st.rerun()
             if down.button("Move down", icon=":material/arrow_downward:", key=f"down_{key}", disabled=disabled or index == len(rows) - 1):
                 rows[index + 1], rows[index] = rows[index], rows[index + 1]
-                st.rerun()
-            if delete.button("Delete section", icon=":material/delete:", key=f"delete_{key}", disabled=disabled):
-                rows.pop(index)
                 st.rerun()
     if st.button("Add Report Section", icon=":material/add:", disabled=disabled):
         rows.append(editable_row({"label": "New Section", "type": "text", "instruction": "", "required": True}))
