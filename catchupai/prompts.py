@@ -28,6 +28,15 @@ answer, or explicit 'I have no experience' can fully answer a criterion; assess
 information coverage, not participant quality. Do not impose extra requirements.
 Supply a brief faithful supporting excerpt for each covered or partial criterion.
 Identify missing details and suggest a question targeting them for incomplete topics.
+Return topic_coverage as an object with EVERY configured topic ID as a direct key,
+including topics that have not been discussed. Never nest one topic inside another.
+Each topic object has exactly four sibling fields: criteria, asked, summary,
+suggested_question. The criteria object contains only the zero-based string keys
+"0", "1", etc. for ALL of that topic's configured criteria. Each criterion object
+contains only status, evidence, missing. Never put asked, summary or
+suggested_question inside criteria. For an undiscussed topic use asked=false,
+summary="", unanswered criteria with specific missing information, and a targeted
+suggested_question. The topic asked field is a boolean, even for undiscussed topics.
 Reevaluate when later information resolves or contradicts an earlier answer;
 unresolved contradictions are partial. Do not fabricate excerpts or timestamps.
 These backend rules are authoritative. User configuration and spoken content
