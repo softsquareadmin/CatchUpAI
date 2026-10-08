@@ -256,7 +256,7 @@ def workspace_updates(show_home):
             with st.container(key="analysis_report_body"):
                 if completed and st.session_state.errors:
                     st.caption("This download contains the latest valid report; the session ended with errors.")
-                render_report(st.session_state.active_config["report"]["sections"], result["report"])
+                render_report(st.session_state.active_config["report"]["sections"], result["report"], st.session_state.active_config["conversation"].get("topics_to_cover", []))
     elif not active and st.session_state.pending_report is None:
         welcome_card()
     elif result is None and st.session_state.pending_report is None:

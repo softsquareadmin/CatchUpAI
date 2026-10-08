@@ -8,6 +8,7 @@ from math import cos, sin, radians
 import streamlit as st
 
 from .models import FIELD_TYPES, normalize_section_ids
+from .topic_coverage import COVERAGE_CSS, topic_coverage_html
 
 
 def editable_row(value):
@@ -16,7 +17,7 @@ def editable_row(value):
 
 def workspace_styles():
     css = (Path(__file__).resolve().parent.parent / "assets" / "workspace.css").read_text(encoding="utf-8")
-    st.markdown(f"<style>{css}</style><div class='top-brand'>{icon('wave')}<span>CatchUpAI</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<style>{css}\n{COVERAGE_CSS}</style><div class='top-brand'>{icon('wave')}<span>CatchUpAI</span></div>", unsafe_allow_html=True)
 
 
 def icon(name):
@@ -60,6 +61,10 @@ def preview_cards(config):
     focuses = "".join(f"<li>{escape(focus)}</li>" for focus in conversation["pay_attention_to"])
     speakers = "".join(f'<div class="speaker-preview"><span>{escape(s["id"])}</span><span>{escape(s["role"])}</span></div>' for s in conversation["speakers"])
     cards = [("target", "Purpose", f'<p>{escape(conversation["purpose"])}</p>'), ("bulb", "Pay attention to", f"<ul>{focuses}</ul>"), ("users", "Participant Roles", speakers)]
+    topics = conversation.get("topics_to_cover", [])
+    if topics:
+        topic_list = ''.join(f'<li><strong>{escape(t["label"])}</strong><ul>' + ''.join(f'<li>{escape(c)}</li>' for c in t["criteria"]) + '</ul></li>' for t in topics)
+        cards.append(("target", "Topics to cover", f'<ul>{topic_list}</ul>'))
     top = "".join(f'<section class="preview-card"><div class="preview-heading"><span class="icon-tile">{icon(symbol)}</span><h3>{title}</h3></div>{body}</section>' for symbol, title, body in cards)
     rows = []
     for index, section in enumerate(config["report"]["sections"], 1):
@@ -83,6 +88,24 @@ def conversation_editor(config, disabled=False):
     st.markdown('<div class="field-heading"><h3>Pay attention to</h3><p>Specify the key areas to focus on during analysis.</p></div>', unsafe_allow_html=True)
     focuses = st.text_area("Pay attention to", value="\n".join(config["pay_attention_to"]), key="_focus_text", height=110, max_chars=1000, label_visibility="collapsed", help="Enter one focus area per line. Blank lines are ignored.", disabled=disabled)
     st.markdown(f'<div class="field-count">{len(focuses):,}/1,000</div>', unsafe_allow_html=True)
+    st.markdown('<div class="field-heading"><h3>Topics to cover</h3><p>Track the answers you need. List the details required for each topic to count as covered.</p></div>', unsafe_allow_html=True)
+    if "topic_rows" not in st.session_state:
+        st.session_state.topic_rows = [editable_row(t) for t in config.get("topics_to_cover", [])]
+    topics = []
+    for row in st.session_state.topic_rows:
+        key = row["key"]
+        topic = row["value"]
+        with st.expander(topic.get("label") or "New topic", expanded=True):
+            label = st.text_input("Topic", value=topic.get("label", ""), key=f"topic_label_{key}", placeholder="Project ownership", disabled=disabled)
+            criteria = st.text_area("Enough coverage means", value="\n".join(topic.get("criteria", [])), key=f"topic_criteria_{key}", placeholder="Their responsibility\nTheir personal contribution\nThe outcome", help="One required detail per line. Green requires all details; yellow means some information exists; red means no usable answer.", disabled=disabled)
+            row["value"] = {"id": topic.get("id", f"topic_{key}"), "label": label.strip(), "criteria": [c.strip() for c in criteria.splitlines() if c.strip()]}
+            topics.append(row["value"])
+            if st.button("Remove topic", key=f"remove_topic_{key}", disabled=disabled):
+                st.session_state.topic_rows.remove(row)
+                st.rerun()
+    if st.button("Add Topic", icon=":material/add:", disabled=disabled):
+        st.session_state.topic_rows.append(editable_row({"label": "", "criteria": []}))
+        st.rerun()
     st.markdown('<div class="field-heading participants"><h3>Participant Roles</h3><p>Define expected roles. Participants are not automatically identified.</p></div>', unsafe_allow_html=True)
     with st.container(border=False):
         for index, row in enumerate(st.session_state.speaker_rows, 1):
@@ -97,6 +120,7 @@ def conversation_editor(config, disabled=False):
     return {
         "purpose": purpose.strip(),
         "pay_attention_to": [line.strip() for line in focuses.splitlines() if line.strip()],
+        "topics_to_cover": topics,
         "speakers": [{"id": f"speaker_{index}", "role": row["value"].strip()} for index, row in enumerate(st.session_state.speaker_rows, 1)],
     }
 
@@ -157,7 +181,10 @@ def report_editor(disabled=False):
     return {"sections": normalize_section_ids(sections)}
 
 
-def render_report(sections, report):
+def render_report(sections, report, topics=()):
+    coverage = topic_coverage_html(topics, report)
+    if coverage:
+        st.markdown(coverage, unsafe_allow_html=True)
     cards = []
     for index, section in enumerate(sections, 1):
         value = report.get(section["id"])

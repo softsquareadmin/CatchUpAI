@@ -19,6 +19,7 @@ class ConversationConfig(TypedDict):
     purpose: str
     pay_attention_to: list[str]
     speakers: list[Speaker]
+    topics_to_cover: NotRequired[list[dict]]
 
 
 class ReportSection(TypedDict):
@@ -77,6 +78,7 @@ def default_config() -> AnalysisConfig:
         "conversation": {
             "purpose": "Track the conversation against its intended goals, capture key information, and identify important questions that remain unasked or need clearer answers. Suggest follow-up questions to close these gaps.",
             "pay_attention_to": ["Important facts", "Questions", "Decisions", "Unresolved items"],
+            "topics_to_cover": [],
             "speakers": [{"id": "speaker_1", "role": "Participant 1"}, {"id": "speaker_2", "role": "Participant 2"}],
         },
         "report": {"sections": normalize_section_ids(sections)},
@@ -141,7 +143,23 @@ def validate_report_sections(sections):
 def validate_config(config):
     _object(config, {"conversation", "report"}, "Configuration")
     conversation = config.get("conversation")
-    _object(conversation, {"purpose", "pay_attention_to", "speakers"}, "Conversation")
+    _object(conversation, {"purpose", "pay_attention_to", "speakers", "topics_to_cover"}, "Conversation")
+    topics = conversation.get("topics_to_cover", [])
+    if not isinstance(topics, list):
+        raise ValueError("Topics to cover must be a list.")
+    topic_ids = set()
+    for topic in topics:
+        _object(topic, {"id", "label", "criteria"}, "Topic")
+        for key in ("id", "label"):
+            _text(topic.get(key), f"Topic {key}")
+        if topic["id"] in topic_ids:
+            raise ValueError("Topic IDs must be unique.")
+        topic_ids.add(topic["id"])
+        criteria = topic.get("criteria")
+        if not isinstance(criteria, list) or not criteria:
+            raise ValueError("Each topic needs at least one coverage criterion.")
+        for criterion in criteria:
+            _text(criterion, "Coverage criterion")
     _text(conversation.get("purpose"), "Purpose")
     focuses = conversation.get("pay_attention_to", [])
     if not isinstance(focuses, list):
@@ -162,3 +180,5 @@ def validate_config(config):
     report = config.get("report")
     _object(report, {"sections"}, "Report")
     validate_report_sections(report.get("sections"))
+    if topics and any(s["id"] == "topic_coverage" for s in report["sections"]):
+        raise ValueError("The report section ID topic_coverage is reserved for topic tracking.")

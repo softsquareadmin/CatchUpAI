@@ -28,7 +28,7 @@ class RealtimeConversationAnalyzer:
         self.config = copy.deepcopy(config if config is not None else default_config())
         validate_config(self.config)
         self.analysis_instructions = build_analysis_instructions(self.config)
-        self.analysis_tool = build_analysis_tool(self.config["report"])
+        self.analysis_tool = build_analysis_tool(self.config["report"], self.config["conversation"].get("topics_to_cover", []))
         self.on_report = on_report
         self.on_error = on_error
         self.on_analysis = on_analysis
