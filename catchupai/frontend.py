@@ -7,12 +7,17 @@ from math import cos, sin, radians
 
 import streamlit as st
 
-from .models import FIELD_TYPES, normalize_section_ids
+from .models import FIELD_TYPES, normalize_section_ids, validate_report_sections
 from .topic_coverage import COVERAGE_CSS, topic_coverage_html
 
 
 def editable_row(value):
     return {"key": uuid.uuid4().hex, "value": value}
+
+
+def inline_error(message, placeholder=None):
+    target = placeholder if placeholder is not None else st
+    target.markdown(f'<div class="configuration-error" role="alert">{escape(message)}</div>', unsafe_allow_html=True)
 
 
 def workspace_styles():
@@ -83,30 +88,46 @@ def preview_cards(config):
 def conversation_editor(config, disabled=False):
     panel_heading("Conversation Configuration", "settings")
     st.markdown('<div class="field-heading"><h3>Purpose</h3><p>Describe what you want to achieve with the conversation analysis. This helps guide the AI in capturing the right information.</p></div>', unsafe_allow_html=True)
-    purpose = st.text_area("Purpose", value=config["purpose"], key="_purpose", height=100, max_chars=1000, label_visibility="collapsed", disabled=disabled)
+    purpose_error = st.empty()
+    if "_purpose" not in st.session_state:
+        st.session_state._purpose = config["purpose"]
+    purpose = st.text_area("Purpose", key="_purpose", height=100, max_chars=1000, label_visibility="collapsed", disabled=disabled)
+    if not purpose.strip():
+        inline_error("Enter a purpose for the conversation.", purpose_error)
     st.markdown(f'<div class="field-count">{len(purpose):,}/1,000</div>', unsafe_allow_html=True)
     st.markdown('<div class="field-heading"><h3>Pay attention to</h3><p>Specify the key areas to focus on during analysis.</p></div>', unsafe_allow_html=True)
-    focuses = st.text_area("Pay attention to", value="\n".join(config["pay_attention_to"]), key="_focus_text", height=110, max_chars=1000, label_visibility="collapsed", help="Enter one focus area per line. Blank lines are ignored.", disabled=disabled)
+    if "_focus_text" not in st.session_state:
+        st.session_state._focus_text = "\n".join(config["pay_attention_to"])
+    focuses = st.text_area("Pay attention to", key="_focus_text", height=110, max_chars=1000, label_visibility="collapsed", help="Enter one focus area per line. Blank lines are ignored.", disabled=disabled)
     st.markdown(f'<div class="field-count">{len(focuses):,}/1,000</div>', unsafe_allow_html=True)
     st.markdown('<div class="field-heading"><h3>Topics to cover</h3><p>Track the answers you need. List the details required for each topic to count as covered.</p></div>', unsafe_allow_html=True)
+    topics_error = st.empty()
     if "topic_rows" not in st.session_state:
         st.session_state.topic_rows = [editable_row(t) for t in config.get("topics_to_cover", [])]
     topics = []
+    topic_errors = []
     for row in st.session_state.topic_rows:
         key = row["key"]
         topic = row["value"]
-        with st.expander(topic.get("label") or "New topic", expanded=True):
+        with st.expander(topic.get("label") or "New topic", expanded=False):
             label = st.text_input("Topic", value=topic.get("label", ""), key=f"topic_label_{key}", placeholder="Project ownership", disabled=disabled)
             criteria = st.text_area("Enough coverage means", value="\n".join(topic.get("criteria", [])), key=f"topic_criteria_{key}", placeholder="Their responsibility\nTheir personal contribution\nThe outcome", help="One required detail per line. Green requires all details; yellow means some information exists; red means no usable answer.", disabled=disabled)
             row["value"] = {"id": topic.get("id", f"topic_{key}"), "label": label.strip(), "criteria": [c.strip() for c in criteria.splitlines() if c.strip()]}
             topics.append(row["value"])
+            if not label.strip():
+                topic_errors.append(f"Topic {len(topics)} needs a name.")
+            if not row["value"]["criteria"]:
+                topic_errors.append(f"{label.strip() or 'Topic ' + str(len(topics))} needs at least one coverage criterion.")
             if st.button("Remove topic", key=f"remove_topic_{key}", disabled=disabled):
                 st.session_state.topic_rows.remove(row)
                 st.rerun()
     if st.button("Add Topic", icon=":material/add:", disabled=disabled):
         st.session_state.topic_rows.append(editable_row({"label": "", "criteria": []}))
         st.rerun()
+    if topic_errors:
+        inline_error(" ".join(topic_errors), topics_error)
     st.markdown('<div class="field-heading participants"><h3>Participant Roles</h3><p>Define expected roles. Participants are not automatically identified.</p></div>', unsafe_allow_html=True)
+    participants_error = st.empty()
     with st.container(border=False):
         for index, row in enumerate(st.session_state.speaker_rows, 1):
             value, remove = st.columns([5, 1], vertical_alignment="bottom")
@@ -117,6 +138,8 @@ def conversation_editor(config, disabled=False):
     if st.button("Add Participant", icon=":material/add:", disabled=disabled):
         st.session_state.speaker_rows.append(editable_row(""))
         st.rerun()
+    if any(not row["value"].strip() for row in st.session_state.speaker_rows):
+        inline_error("Enter a role or name for each participant.", participants_error)
     return {
         "purpose": purpose.strip(),
         "pay_attention_to": [line.strip() for line in focuses.splitlines() if line.strip()],
@@ -125,14 +148,16 @@ def conversation_editor(config, disabled=False):
     }
 
 
-def report_editor(disabled=False):
+def report_editor(disabled=False, tracking_topics=False):
     panel_heading("Custom Report", "chart", "Add the fields you want at each checkpoint. Move sections to set their display order.")
+    report_error = st.empty()
     sections = []
     rows = st.session_state.section_rows
     for index, row in enumerate(rows):
         section = row["value"]
         key = row["key"]
-        with st.expander(f"{index + 1}. {section['label'] or 'Untitled section'}", expanded=index == 0):
+        with st.expander(f"{index + 1}. {section['label'] or 'Untitled section'}", expanded=False):
+            section_error = st.empty()
             label = st.text_input("Section Label", value=section["label"], key=f"label_{key}", disabled=disabled)
             left, right = st.columns(2)
             kind = left.selectbox("Section Type", FIELD_TYPES, index=FIELD_TYPES.index(section["type"]), key=f"type_{key}", format_func=str.title, disabled=disabled)
@@ -165,6 +190,13 @@ def report_editor(disabled=False):
                     updated["max_items"] = st.number_input("Maximum items", min_value=1, value=section.get("max_items", 10), step=1, key=f"items_{key}", disabled=disabled)
             row["value"] = updated
             sections.append(updated)
+            try:
+                validated = normalize_section_ids([updated])
+                validate_report_sections(validated)
+                if tracking_topics and validated[0]["id"] == "topic_coverage":
+                    raise ValueError("Choose another label; Topic coverage is reserved for topic tracking.")
+            except ValueError as error:
+                inline_error(str(error).removeprefix("Report section 1: "), section_error)
             up, down, delete = st.columns(3)
             if up.button("Move up", icon=":material/arrow_upward:", key=f"up_{key}", disabled=disabled or index == 0):
                 rows[index - 1], rows[index] = rows[index], rows[index - 1]
@@ -178,6 +210,8 @@ def report_editor(disabled=False):
     if st.button("Add Report Section", icon=":material/add:", disabled=disabled):
         rows.append(editable_row({"label": "New Section", "type": "text", "instruction": "", "required": True}))
         st.rerun()
+    if not sections:
+        inline_error("Add at least one report section.", report_error)
     return {"sections": normalize_section_ids(sections)}
 
 

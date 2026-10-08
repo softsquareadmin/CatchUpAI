@@ -2,6 +2,27 @@
 
 ### Your AI second listener.
 
+## Configuration templates
+
+On the Configurations page, enter a template name and choose **Save template** to
+save the Conversation Configuration and Custom Report together. Saved templates
+include focus areas, topics and coverage criteria, participant roles, and report
+sections with their instructions and field settings.
+
+Select a saved template and choose **Load** to fill both editors. After editing,
+choose **Save changes** to update the loaded template, or use a different, unique
+name with **Save as new** to keep a separate copy. Each template in the dropdown
+has an **×** button; confirm the popup to delete it. The current configuration
+remains available in the editors. When creating a new template, **Reset** clears
+both configuration editors and the template name.
+Choose **Create new template** in the dropdown to leave a loaded template and
+start with empty editors. **Save changes** is enabled only after editing the
+loaded configuration or its name. Validation messages appear beside the relevant
+configuration fields and below the template save controls.
+
+Templates are stored as JSON files in `configuration_templates/` and remain
+available after restarting the app. Template names must be unique.
+
 CatchUp listens to conversations and helps you understand what you may have missed.
 
 It identifies important points, unanswered questions, action items, key details, and useful suggestions — so you can stay focused on the conversation instead of worrying about remembering everything.
