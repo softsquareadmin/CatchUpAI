@@ -266,7 +266,11 @@ def upload_recording(config, disabled=False):
             st.markdown(f'<div class="uploaded-file"><svg viewBox="0 0 32 40" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2h16l8 8v28H4zM20 2v10h8M13 29V18l9-2v11"/><ellipse cx="10" cy="30" rx="3" ry="2" fill="currentColor"/><ellipse cx="19" cy="28" rx="3" ry="2" fill="currentColor"/></svg><div><strong>{escape(uploaded.name)}</strong><small>{size_label}</small></div></div>', unsafe_allow_html=True)
         remove.button("Remove uploaded audio", icon=":material/close:", key="remove_uploaded_audio", help="Remove uploaded audio", disabled=disabled, on_click=clear_uploaded_recording)
         st.markdown(f'<div class="uploaded-details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>{minutes}:{seconds:02d}</span></div>', unsafe_allow_html=True)
-    st.audio(recording_bytes)
+    session = st.session_state.live
+    if session is not None and session.running and not isinstance(session, BrowserAudioSession):
+        if st.button("Cancel recording analysis", disabled=session.stop_event.is_set()):
+            session.stop()
+        return
     if st.button("Analyze recording", icon=":material/graphic_eq:", type="primary", disabled=disabled, width="stretch"):
         if st.session_state.live is not None and st.session_state.live.running:
             st.error("Stop the current session before analyzing another recording.")
@@ -345,10 +349,6 @@ def recorder_controls():
                             st.error(str(audio_error))
                     if message.get("error"):
                         st.error(message["error"])
-                if active and not browser_session:
-                    st.caption(st.session_state.runtime_status)
-                    if st.button("Cancel recording analysis", disabled=session.stop_event.is_set()):
-                        session.stop()
             with upload, st.container(key="upload_action"):
                 st.markdown("### Upload audio")
                 st.caption("Upload an existing audio file to analyze.")
