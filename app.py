@@ -8,7 +8,8 @@ import uuid
 
 import streamlit as st
 
-from catchupai.frontend import conversation_editor, editable_row, render_report, report_editor, workspace_styles, page_heading, panel_heading, preview_cards, welcome_card
+from catchupai.frontend import conversation_editor, editable_row, render_report, report_editor, workspace_styles, page_heading, panel_heading, welcome_card
+from catchupai.config import ANALYSIS_INTERVAL
 from catchupai.session import LiveSession
 from catchupai.browser_audio import BrowserAudioSession, browser_recorder
 from catchupai.models import default_config, normalize_section_ids, validate_config
@@ -70,6 +71,7 @@ def select_template(template_id):
 
 def comparable_configuration(config):
     normalized = copy.deepcopy(config)
+    normalized.setdefault("analysis_interval", ANALYSIS_INTERVAL)
     normalized["conversation"].setdefault("topics_to_cover", [])
     for index, speaker in enumerate(normalized["conversation"]["speakers"], 1):
         speaker["id"] = f"speaker_{index}"
@@ -212,13 +214,35 @@ def start_session(config, recording_bytes=None, source_name=None, browser_sessio
     session.start()
 
 
-@st.dialog("Configuration Preview", width="large")
-def preview_config(config):
-    with st.container(border=False, key="preview_content"):
-        preview_cards(config)
-    with st.container(key="preview_footer"):
-        spacer, close = st.columns([5, 1])
-        if close.button("Close preview", use_container_width=True):
+def interval_label(seconds):
+    return f"{seconds} sec" if seconds < 60 or seconds % 60 else f"{seconds // 60} min"
+
+
+def dismiss_analysis_interval():
+    st.session_state.analysis_interval_open = False
+
+
+@st.dialog("Select Analysis Interval", width="small", icon=":material/schedule:", on_dismiss=dismiss_analysis_interval)
+def analysis_interval_dialog():
+    with st.container(border=False, key="analysis_interval_content"):
+        selected = st.session_state._analysis_interval_selection
+        st.markdown(f'<div class="analysis-interval-value">{interval_label(selected)}</div>', unsafe_allow_html=True)
+        st.select_slider(
+            "Analysis interval", options=st.session_state._analysis_interval_options,
+            key="_analysis_interval_selection", format_func=interval_label,
+            label_visibility="collapsed",
+        )
+        labels = ''.join(f'<span>{interval_label(value)}</span>' for value in st.session_state._analysis_interval_options)
+        st.markdown(f'<div class="analysis-interval-ticks">{labels}</div>', unsafe_allow_html=True)
+        st.caption("How often CatchUpAI requests an updated report during live recording. Minimum: 30 seconds. Shorter intervals give more frequent updates; longer intervals make fewer analysis requests. Changes apply to your next recording.")
+    with st.container(key="analysis_interval_footer"):
+        _, cancel, apply = st.columns([2, 1, 1], gap="small")
+        if cancel.button("Cancel", key="cancel_analysis_interval", use_container_width=True):
+            dismiss_analysis_interval()
+            st.rerun()
+        if apply.button("Apply", key="apply_analysis_interval", type="primary", use_container_width=True):
+            st.session_state.draft_config["analysis_interval"] = st.session_state._analysis_interval_selection
+            dismiss_analysis_interval()
             st.rerun()
 
 
@@ -406,11 +430,11 @@ if page == "Conversation Studio":
     recorder_controls()
     workspace_updates(True)
 else:
-    heading, preview_button = st.columns([4, 1], vertical_alignment="top")
+    heading, interval_button = st.columns([4, 1], vertical_alignment="top")
     with heading:
         page_heading("Configurations", "")
-    with preview_button, st.container(key="preview_button"):
-        open_preview = st.button("Preview Config", icon=":material/visibility:", use_container_width=True)
+    with interval_button, st.container(key="analysis_interval_button"):
+        open_interval = st.button("Analysis Interval", icon=":material/schedule:", use_container_width=True, disabled=running)
     # Reserve the toolbar position, then render it using this run's editor values.
     template_toolbar = st.container()
     left, right = st.columns(2, gap="small")
@@ -418,7 +442,10 @@ else:
         conversation = conversation_editor(st.session_state.draft_config["conversation"], disabled=running)
     with right, st.container(border=False, key="report_editor_panel"):
         report_definition = report_editor(disabled=running, tracking_topics=bool(conversation.get("topics_to_cover")))
-    st.session_state.draft_config = {"conversation": conversation, "report": report_definition}
+    st.session_state.draft_config = {
+        "conversation": conversation, "report": report_definition,
+        "analysis_interval": st.session_state.draft_config.get("analysis_interval", ANALYSIS_INTERVAL),
+    }
     error = configuration_error(st.session_state.draft_config)
     with template_toolbar:
         save_new, update_existing, save_error = template_controls(disabled=running)
@@ -440,6 +467,11 @@ else:
             st.rerun()
         except (OSError, ValueError, TypeError) as template_error:
             inline_error(str(template_error), save_error)
-    if open_preview and not error:
-        preview_config(copy.deepcopy(st.session_state.draft_config))
+    if open_interval:
+        current_interval = st.session_state.draft_config.get("analysis_interval", ANALYSIS_INTERVAL)
+        st.session_state._analysis_interval_selection = current_interval
+        st.session_state._analysis_interval_options = sorted({30, 60, 120, 300, 600, current_interval})
+        st.session_state.analysis_interval_open = True
+    if st.session_state.get("analysis_interval_open"):
+        analysis_interval_dialog()
     workspace_updates(False)

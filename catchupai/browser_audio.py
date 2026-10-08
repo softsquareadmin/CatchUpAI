@@ -24,6 +24,7 @@ class BrowserAudioSession:
     def __init__(self, config, session_id, client_factory=RealtimeConversationAnalyzer):
         validate_config(config)
         self.config = copy.deepcopy(config)
+        self.analysis_interval = self.config.get("analysis_interval", ANALYSIS_INTERVAL)
         self.session_id = session_id
         self.events = queue.Queue()
         self.stop_event = threading.Event()
@@ -159,7 +160,7 @@ class BrowserAudioSession:
                     caught_up = sent == count
                     ready = not client.pending_responses
                     final = self.input_finished.is_set() and caught_up
-                    due = elapsed - analyzed_at >= ANALYSIS_INTERVAL
+                    due = elapsed - analyzed_at >= self.analysis_interval
                     if ready and caught_up and count and (due or recovered or final):
                         self.checkpoint += 1
                         client.analysis_number = self.checkpoint - 1

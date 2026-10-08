@@ -47,6 +47,7 @@ def main(config=None, stop_event=None, on_report=None, on_error=None, on_status=
 
 
 def _run_audio_session(config, stop_event, on_report, on_error, status, on_analysis):
+    analysis_interval = config.get("analysis_interval", ANALYSIS_INTERVAL)
     if sd is None:
         raise RuntimeError("Server microphone capture requires sounddevice and PortAudio. Use the browser recorder in app.py instead.")
     input_device = sd.query_devices(kind="input")
@@ -60,7 +61,7 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
     print("Microphone sample rate:", mic_sample_rate,)
     print("OpenAI sample rate:", OPENAI_SAMPLE_RATE,)
     print("Chunk size:", CHUNK_MS, "ms",)
-    print("Analysis interval:", ANALYSIS_INTERVAL,"seconds",)
+    print("Analysis interval:", analysis_interval,"seconds",)
 
     copilot = RealtimeConversationAnalyzer(config, on_report=on_report, on_error=on_error, on_analysis=on_analysis)
     audio_since_commit = False
@@ -106,7 +107,7 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
                 now = time.monotonic()
                 elapsed = (now - start_time)
 
-                if (now - last_analysis_time >= ANALYSIS_INTERVAL):
+                if (now - last_analysis_time >= analysis_interval):
                     print("\n\n" "************************************")
                     print(f"CHECKPOINT: " f"{elapsed:.0f} seconds")
                     print("************************************")

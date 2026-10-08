@@ -96,7 +96,16 @@ button:disabled { opacity:.55; }
 div[class*="st-key-remove_speaker_"] button { width:42px; min-width:42px; color:#26334f; }
 div[class*="st-key-remove_speaker_"] button p { display:none; }
 div[class*="st-key-delete_"] button { color:#df2929; border-color:#ff8585; }
-.st-key-preview_button button { color:var(--blue); border-color:#8eb7ff; padding:0 18px; min-height:42px; }
+.st-key-analysis_interval_button button { color:var(--blue); border-color:#8eb7ff; padding:0 18px; min-height:42px; }
+.analysis-interval-value { color:var(--blue); font-size:28px; font-weight:700; text-align:center; margin:16px 0 22px; }
+.analysis-interval-ticks { display:flex; justify-content:space-between; color:var(--muted); font-size:12px; margin:-8px 0 20px; }
+.st-key-analysis_interval_footer { border-top:1px solid var(--line); padding-top:16px; margin-top:12px; }
+.st-key-analysis_interval_footer button[kind="primary"] { background:var(--blue); border-color:var(--blue); color:#fff; }
+.st-key-analysis_interval_footer button[kind="primary"] p { color:#fff!important; }
+.st-key-analysis_interval_footer button[kind="primary"]:hover { background:#0059db; border-color:#0059db; }
+[data-testid="stDialog"]:has(.st-key-analysis_interval_content) { align-items:center!important; }
+[data-testid="stDialog"]:has(.st-key-analysis_interval_content) > div { width:480px!important; }
+[data-testid="stDialog"]:has(.st-key-analysis_interval_content) h2 { font-size:18px; }
 [data-testid="stExpander"] { border:1px solid var(--line); border-radius:6px; background:white; }
 [data-testid="stExpander"] summary { padding:9px 14px; min-height:40px; color:var(--ink); }
 [data-testid="stExpander"] details[open] summary { background:#eaf4ff; font-weight:600; }

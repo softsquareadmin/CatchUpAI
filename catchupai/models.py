@@ -41,6 +41,7 @@ class ReportConfig(TypedDict):
 class AnalysisConfig(TypedDict):
     conversation: ConversationConfig
     report: ReportConfig
+    analysis_interval: NotRequired[int]
 
 
 def make_section_id(label, used_ids=()):
@@ -141,7 +142,11 @@ def validate_report_sections(sections):
 
 
 def validate_config(config):
-    _object(config, {"conversation", "report"}, "Configuration")
+    _object(config, {"conversation", "report", "analysis_interval"}, "Configuration")
+    if "analysis_interval" in config:
+        interval = config["analysis_interval"]
+        if type(interval) is not int or interval < 30:
+            raise ValueError("Analysis interval must be a whole number of at least 30 seconds.")
     conversation = config.get("conversation")
     _object(conversation, {"purpose", "pay_attention_to", "speakers", "topics_to_cover"}, "Conversation")
     topics = conversation.get("topics_to_cover", [])
