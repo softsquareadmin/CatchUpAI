@@ -392,7 +392,7 @@ if page == "Conversation Studio":
 else:
     heading, preview_button = st.columns([4, 1], vertical_alignment="top")
     with heading:
-        page_heading("Configurations", "Set up how your conversations are analyzed and define the structure of your reports.")
+        page_heading("Configurations", "")
     with preview_button, st.container(key="preview_button"):
         open_preview = st.button("Preview Config", icon=":material/visibility:", use_container_width=True)
     # Reserve the toolbar position, then render it using this run's editor values.

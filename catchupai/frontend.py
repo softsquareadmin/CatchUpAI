@@ -47,12 +47,25 @@ def icon(name):
     return f'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths[name]}</svg>'
 
 
-def panel_heading(title, symbol, description="", strong=False):
-    st.markdown(f'<div class="panel-heading"><span class="icon-tile {"solid" if strong else ""}">{icon(symbol)}</span><div><h2>{escape(title)}</h2>{f"<p>{escape(description)}</p>" if description else ""}</div></div>', unsafe_allow_html=True)
+def help_icon(description):
+    text = escape(description, quote=True)
+    return f'<span class="heading-help" tabindex="0" role="img" aria-label="Help: {text}" title="{text}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7" r="1" fill="currentColor" stroke="none"/></svg></span>' if description else ""
 
 
-def page_heading(title, description):
-    st.markdown(f'<div class="page-heading {"studio-heading" if title == "Conversation Studio" else ""}"><div class="eyebrow">CatchUpAI</div><h1>{escape(title)}</h1><p>{escape(description)}</p></div>', unsafe_allow_html=True)
+def field_heading(title, description, extra_class=""):
+    st.markdown(f'<div class="field-heading {extra_class}"><h3>{escape(title)} {help_icon(description)}</h3></div>', unsafe_allow_html=True)
+
+
+def panel_heading(title, symbol, description="", strong=False, tooltip=False):
+    title_help = help_icon(description) if tooltip else ""
+    body = f'<p>{escape(description)}</p>' if description and not tooltip else ""
+    st.markdown(f'<div class="panel-heading"><span class="icon-tile {"solid" if strong else ""}">{icon(symbol)}</span><div><h2>{escape(title)} {title_help}</h2>{body}</div></div>', unsafe_allow_html=True)
+
+
+def page_heading(title, description, tooltip=False):
+    title_help = help_icon(description) if tooltip else ""
+    body = f'<p>{escape(description)}</p>' if not tooltip else ""
+    st.markdown(f'<div class="page-heading {"studio-heading" if title == "Conversation Studio" else ""}"><div class="eyebrow">CatchUpAI</div><h1>{escape(title)} {title_help}</h1>{body}</div>', unsafe_allow_html=True)
 
 
 def welcome_card():
@@ -87,7 +100,7 @@ def preview_cards(config):
 
 def conversation_editor(config, disabled=False):
     panel_heading("Conversation Configuration", "settings")
-    st.markdown('<div class="field-heading"><h3>Purpose</h3><p>Describe what you want to achieve with the conversation analysis. This helps guide the AI in capturing the right information.</p></div>', unsafe_allow_html=True)
+    field_heading("Purpose", "Describe what you want to achieve with the conversation analysis. This helps guide the AI in capturing the right information.")
     purpose_error = st.empty()
     if "_purpose" not in st.session_state:
         st.session_state._purpose = config["purpose"]
@@ -95,12 +108,12 @@ def conversation_editor(config, disabled=False):
     if not purpose.strip():
         inline_error("Enter a purpose for the conversation.", purpose_error)
     st.markdown(f'<div class="field-count">{len(purpose):,}/1,000</div>', unsafe_allow_html=True)
-    st.markdown('<div class="field-heading"><h3>Pay attention to</h3><p>Specify the key areas to focus on during analysis.</p></div>', unsafe_allow_html=True)
+    field_heading("Pay attention to", "Specify the key areas to focus on during analysis. Enter one focus area per line; blank lines are ignored.")
     if "_focus_text" not in st.session_state:
         st.session_state._focus_text = "\n".join(config["pay_attention_to"])
-    focuses = st.text_area("Pay attention to", key="_focus_text", height=110, max_chars=1000, label_visibility="collapsed", help="Enter one focus area per line. Blank lines are ignored.", disabled=disabled)
+    focuses = st.text_area("Pay attention to", key="_focus_text", height=110, max_chars=1000, label_visibility="collapsed", disabled=disabled)
     st.markdown(f'<div class="field-count">{len(focuses):,}/1,000</div>', unsafe_allow_html=True)
-    st.markdown('<div class="field-heading"><h3>Topics to cover</h3><p>Track the answers you need. List the details required for each topic to count as covered.</p></div>', unsafe_allow_html=True)
+    field_heading("Topics to cover", "Add topics you need to cover. The report tracks whether each has a complete, partial, or missing answer.")
     topics_error = st.empty()
     if "topic_rows" not in st.session_state:
         st.session_state.topic_rows = [editable_row(t) for t in config.get("topics_to_cover", [])]
@@ -126,12 +139,12 @@ def conversation_editor(config, disabled=False):
         st.rerun()
     if topic_errors:
         inline_error(" ".join(topic_errors), topics_error)
-    st.markdown('<div class="field-heading participants"><h3>Participant Roles</h3><p>Define expected roles. Participants are not automatically identified.</p></div>', unsafe_allow_html=True)
+    field_heading("Participant Roles", "Define participant roles to guide analysis. Speakers aren’t automatically identified.", "participants")
     participants_error = st.empty()
     with st.container(border=False):
         for index, row in enumerate(st.session_state.speaker_rows, 1):
             value, remove = st.columns([5, 1], vertical_alignment="bottom")
-            row["value"] = value.text_input(f"Participant {index} role / name", value=row["value"], key=f"speaker_{row['key']}", disabled=disabled)
+            row["value"] = value.text_input(f"Participant {index} role", value=row["value"], key=f"speaker_{row['key']}", disabled=disabled)
             if remove.button("Remove participant", icon=":material/delete:", help=f"Remove participant {index}", key=f"remove_speaker_{row['key']}", disabled=disabled):
                 st.session_state.speaker_rows.remove(row)
                 st.rerun()
@@ -139,7 +152,7 @@ def conversation_editor(config, disabled=False):
         st.session_state.speaker_rows.append(editable_row(""))
         st.rerun()
     if any(not row["value"].strip() for row in st.session_state.speaker_rows):
-        inline_error("Enter a role or name for each participant.", participants_error)
+        inline_error("Enter a role for each participant.", participants_error)
     return {
         "purpose": purpose.strip(),
         "pay_attention_to": [line.strip() for line in focuses.splitlines() if line.strip()],
@@ -149,7 +162,7 @@ def conversation_editor(config, disabled=False):
 
 
 def report_editor(disabled=False, tracking_topics=False):
-    panel_heading("Custom Report", "chart", "Add the fields you want at each checkpoint. Move sections to set their display order.")
+    panel_heading("Custom Report", "chart")
     report_error = st.empty()
     sections = []
     rows = st.session_state.section_rows

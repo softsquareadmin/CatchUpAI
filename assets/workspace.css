@@ -65,6 +65,12 @@
 .st-key-conversation_panel, .st-key-report_editor_panel { padding:16px 23px; min-height:calc(100dvh - 238px); }
 .st-key-conversation_panel > [data-testid="stVerticalBlock"], .st-key-report_editor_panel > [data-testid="stVerticalBlock"] { gap:12px; }
 .field-heading h3 { font-size:16px; line-height:23px; padding:0; margin:0 0 3px; }
+.heading-help { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; margin-left:5px; color:#73849e; font:14px/1 Arial,Helvetica,sans-serif; font-weight:400; letter-spacing:0; vertical-align:middle; cursor:help; flex-shrink:0; }
+.heading-help svg { display:block; width:16px; height:16px; }
+.heading-help:hover, .heading-help:focus-visible { color:#0069ff; }
+.heading-help:focus-visible { outline:2px solid #9cc8ff; outline-offset:3px; border-radius:50%; }
+.page-heading h1 .heading-help { margin-left:9px; }
+.template-toolbar-title .heading-help { margin-left:0; }
 .field-heading p { color:var(--muted); font-size:14px; line-height:21px; margin:0; }
 .field-heading.participants { border-top:1px solid var(--line); padding-top:16px; margin-top:10px; }
 [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea, [data-baseweb="select"] > div { background:white!important; color:var(--ink)!important; border-radius:5px; font-size:14px; }
