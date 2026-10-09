@@ -56,10 +56,10 @@
 .st-key-upload_action [data-testid="stFileUploaderDropzone"] { flex-direction:column; justify-content:center; min-height:170px; background:#f8fafc; border:1px dashed #bcc9da; border-radius:7px; padding:18px; gap:12px; }
 .st-key-upload_action [data-testid="stFileUploaderDropzoneInstructions"] { align-items:center; margin:0; }
 .st-key-upload_action [data-testid="stFileUploaderDropzoneInstructions"] > div { display:none; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button { color:var(--blue); padding:0; border:0; background:transparent; min-height:22px; text-decoration:underline; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button::before { content:"Drag and drop or "; color:#283650; text-decoration:none; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button p { font-size:0; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button p::after { content:"click to browse"; font-size:15px; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *) { color:var(--blue); padding:0; border:0; background:transparent; min-height:22px; text-decoration:underline; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *)::before { content:"Drag and drop or "; color:#283650; text-decoration:none; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *) p { font-size:0; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *) p::after { content:"click to browse"; font-size:15px; }
 .st-key-upload_action [data-testid="stFileUploaderDropzone"]::after { content:"Supports audio files (MP3, WAV, FLAC, OGG)"; color:var(--muted); font-size:13px; }
 .st-key-upload_action [data-testid="stFileUploaderDropzoneInstructions"] svg { width:43px; height:43px; color:#7a8498; }
 .st-key-conversation_panel, .st-key-report_editor_panel { padding:16px 23px; min-height:calc(100dvh - 238px); }
@@ -228,9 +228,9 @@ div[class*="st-key-delete_"] button { color:#df2929; border-color:#ff8585; }
 .st-key-upload_action [data-testid="stFileUploaderDropzone"] { display:flex!important; flex-direction:column!important; align-items:center!important; justify-content:center!important; gap:12px!important; }
 .st-key-upload_action [data-testid="stFileUploaderDropzoneInstructions"] { display:none!important; }
 .st-key-upload_action [data-testid="stFileUploaderDropzone"]::before { content:""; width:52px; height:52px; background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' fill='none' stroke='%23778095' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 34H10a8 8 0 0 1-1-16 10 10 0 0 1 17-6 12 12 0 0 1 14 18 7 7 0 0 1-6 4m-10 7V22m-8 8 8-8 8 8'/%3E%3C/svg%3E"); }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button { text-decoration:none; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button p::after { text-decoration:underline; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button [data-testid="stIconMaterial"] { display:none; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *) { text-decoration:none; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *) p::after { text-decoration:underline; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *) [data-testid="stIconMaterial"] { display:none; }
 .st-key-conversation_panel > [data-testid="stVerticalBlock"], .st-key-report_editor_panel > [data-testid="stVerticalBlock"] { gap:8px; }
 @media(max-width:900px) { [data-testid="stSidebar"] { width:210px!important; min-width:210px!important; } .block-container { padding-left:20px; padding-right:20px; } .how-step { gap:12px; padding-left:14px; padding-right:14px; } .how-step .icon-tile { display:none; } .page-heading h1 { font-size:32px; } }
 @media(max-width:640px) { [data-testid="stSidebar"] { display:none; } .block-container { padding:86px 14px 24px; } .st-key-upload_action { border-left:0; padding-left:0; border-top:1px solid var(--line); padding-top:16px; } .how-steps,.preview-grid { grid-template-columns:1fr; } .how-step { border-left:0; padding:15px 0; } .preview-card { min-height:0; } }
@@ -240,11 +240,16 @@ div[class*="st-key-delete_"] button { color:#df2929; border-color:#ff8585; }
 .st-key-upload_action h3 { padding-bottom:0; font-size:16px; }
 .st-key-upload_action [data-testid="stCaptionContainer"] p { font-size:12px; margin:0 0 8px; }
 .st-key-upload_action [data-testid="stFileUploaderDropzone"] { min-height:220px; background:#f2f8ff; border-color:#9cc8ff; border-radius:8px; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button::before { content:"Drag and drop audio here"; display:block; color:var(--ink); font-weight:700; font-size:14px; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button { display:flex; flex-direction:column; gap:6px; height:auto; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button p::before { content:"or "; color:var(--muted); font-size:14px; }
-.st-key-upload_action [data-testid="stFileUploaderDropzone"] button p::after { content:"browse files"; font-size:14px; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *)::before { content:"Drag and drop audio here"; display:block; color:var(--ink); font-weight:700; font-size:14px; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *) { display:flex; flex-direction:column; gap:6px; height:auto; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *) p::before { content:"or "; color:var(--muted); font-size:14px; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"] button:not([data-testid="stFileChip"] *) p::after { content:"browse files"; font-size:14px; }
 .st-key-upload_action [data-testid="stFileUploaderDropzone"]::after { content:"Supports MP3, WAV, FLAC, OGG"; font-size:11px; }
+/* Streamlit shows file chips before Python receives the completed upload. */
+.st-key-upload_action [data-testid="stFileUploaderDropzone"]::before { flex-shrink:0; }
+.st-key-upload_action [data-testid="stFileUploaderDropzone"]:has([data-testid="stFileChip"]) { height:auto; }
+.st-key-upload_action [data-testid="stFileChip"] { width:100%; min-width:0; flex-shrink:0; background:#fff; }
+.st-key-upload_action [data-testid="stFileChip"] button { flex-shrink:0; }
  .st-key-upload_picker_selected { display:none; }
 .st-key-upload_file_card { border:1px dashed #9cc8ff; border-radius:8px; padding:18px 14px 12px; background:#f2f8ff; }
 .st-key-upload_file_card > [data-testid="stVerticalBlock"] { background:white; border:1px solid #dce9fa; border-radius:9px; padding:12px 14px 0; gap:8px; }
@@ -309,6 +314,12 @@ div[class*="st-key-delete_"] button { color:#df2929; border-color:#ff8585; }
 .st-key-capture_header { position:relative; padding:12px 24px; min-height:73px; box-sizing:border-box; border-bottom:1px solid var(--line); }
 .st-key-capture_header > [data-testid="stVerticalBlock"] { position:relative; min-height:48px; gap:0; }
 .st-key-capture_card .st-key-capture_header .panel-heading { border-bottom:0; min-height:48px; padding:0 60px 0 0!important; align-items:center; }
+.capture-heading-row { display:flex; align-items:center; justify-content:space-between; gap:20px; padding-right:60px; flex-wrap:wrap; }
+.st-key-capture_card .st-key-capture_header .capture-heading-row .panel-heading { padding:0!important; min-width:0; }
+.capture-template { display:flex; align-items:center; gap:12px; min-width:0; color:var(--muted); font-size:13px; }
+.capture-template-badge { display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:24px; background:#e8f3ff; color:var(--blue); min-width:0; }
+.capture-template-badge svg { width:18px; height:18px; flex-shrink:0; }
+.capture-template-badge > span { overflow-wrap:anywhere; }
 .st-key-reset_workspace { position:absolute; top:12px; right:24px; width:48px!important; margin:0; z-index:1; }
 .st-key-reset_workspace button { display:flex; align-items:center; justify-content:center; width:48px; height:48px; min-height:48px; padding:0; gap:0; border:0!important; border-radius:0; box-shadow:none!important; color:var(--blue); background:transparent!important; }
 .st-key-reset_workspace button > div { display:none; }

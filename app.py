@@ -339,7 +339,24 @@ def recorder_controls():
     error = configuration_error(config)
     with st.container(key="capture_card"):
         with st.container(key="capture_header"):
-            panel_heading("Record or Upload a Conversation", "wave", strong=True)
+            template_badge = ""
+            loaded_id = st.session_state.get("loaded_template_id")
+            if loaded_id:
+                try:
+                    loaded_name = escape(load_template(loaded_id)["name"])
+                    template_badge = (
+                        '<div class="capture-template"><span>Template</span>'
+                        f'<span class="capture-template-badge">{icon("file")}'
+                        f'<span>{loaded_name}</span></span></div>'
+                    )
+                except (OSError, ValueError, TypeError):
+                    pass
+            st.markdown(
+                '<div class="capture-heading-row"><div class="panel-heading">'
+                f'<span class="icon-tile solid">{icon("wave")}</span>'
+                '<div><h2>Record or Upload a Conversation</h2></div></div>'
+                f'{template_badge}</div>', unsafe_allow_html=True,
+            )
             if st.button("Reset", key="reset_workspace", disabled=active, on_click=reset_workspace, help="Reset recording, uploaded file, and report. Keep your configuration."):
                 st.rerun()
         with st.container(key="capture_body"):
