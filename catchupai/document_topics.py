@@ -11,6 +11,7 @@ import uuid
 from jsonschema import Draft202012Validator
 
 from .config import OPENAI_API_KEY, TOPIC_EXTRACTION_MODEL
+from .usage import UsageTracker
 
 
 MAX_DOCUMENT_BYTES = 20 * 1024 * 1024
@@ -147,6 +148,7 @@ def extract_document_topics(filename, data, purpose, existing_topics=()):
         data=json.dumps(payload).encode("utf-8"), method="POST",
         headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
     )
+    tracker = UsageTracker()
     try:
         with urllib.request.urlopen(request, timeout=180) as connection:
             response = json.load(connection)
@@ -159,9 +161,18 @@ def extract_document_topics(filename, data, purpose, existing_topics=()):
         message = messages.get(error.code, "OpenAI could not process this document. Check the file and model access, then try again.")
         raise ValueError(message) from error
     except (urllib.error.URLError, socket.timeout, TimeoutError, OSError) as error:
+        tracker.mark_gap("document_connection_lost_without_usage")
+        tracker.log_summary()
         raise ValueError("Could not reach OpenAI or document analysis timed out. Try again.") from error
     except ValueError as error:
+        tracker.mark_gap("unreadable_document_response_usage")
+        tracker.log_summary()
         raise ValueError("OpenAI returned an unreadable response. Try again.") from error
+    # Record paid responses before parsing, including incomplete or invalid output.
+    tracker.record(response.get("id"), response.get("model") or TOPIC_EXTRACTION_MODEL,
+                   response.get("usage"), purpose="document_topic_extraction",
+                   status=response.get("status"), api="responses")
+    tracker.log_summary()
     return parse_extraction_response(response)
 
 

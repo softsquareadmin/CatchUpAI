@@ -59,7 +59,7 @@ def analyze_recording(config, recording_bytes, stop_event, on_report=None, on_er
         if client.connection_failed.is_set():
             raise RuntimeError("Realtime connection failed; restart the recording analysis.")
         # One commit and one analysis after the entire file has arrived.
-        client.request_analysis(timestamp=elapsed)
+        client.request_analysis(timestamp=elapsed, is_final=True)
         finished = client.wait_for_responses(timeout=120, stop_event=stop_event)
         if stop_event.is_set():
             status("Cancelled")

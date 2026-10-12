@@ -84,6 +84,7 @@
           "type": "text",
           "instruction": "Summarize the conversation heard so far.",
           "required": true,
+          "final_only": true,
           "id": "summary"
         },
         {
@@ -91,6 +92,7 @@
           "type": "list",
           "instruction": "List important facts explicitly learned during the conversation.",
           "required": true,
+          "final_only": true,
           "id": "important_facts"
         },
         {
@@ -98,6 +100,7 @@
           "type": "list",
           "instruction": "Compare the important questions and information to cover in the configured Pay attention to focus areas against the conversation so far. List questions that have not yet been asked and whose answers have not otherwise been provided. Treat information volunteered by a participant as covered. Do not invent a required question checklist when none is configured; return an empty list when no uncovered configured questions remain.",
           "required": true,
+          "final_only": false,
           "id": "questions_not_yet_asked"
         },
         {
@@ -105,6 +108,7 @@
           "type": "list",
           "instruction": "List important questions that were asked but received no answer, a vague answer, or an incomplete answer, including questions the interviewer moved away from before obtaining a clear response. For each item, explain what remains unclear and suggest a specific follow-up question. Consider later answers in the conversation so far and exclude questions that have since been clearly answered. Return an empty list when none need clarification.",
           "required": true,
+          "final_only": false,
           "id": "questions_needing_clarification"
         },
         {
@@ -112,9 +116,11 @@
           "type": "text",
           "instruction": "Suggest a useful next action grounded in the conversation.",
           "required": true,
+          "final_only": false,
           "id": "recommended_next_action"
         }
       ]
-    }
+    },
+    "analysis_interval": 60
   }
 }

@@ -13,6 +13,7 @@ from streamlit.components.v1 import declare_component
 from .config import ANALYSIS_INTERVAL, OPENAI_SAMPLE_RATE
 from .models import validate_config
 from .realtime_client import RealtimeConversationAnalyzer
+from .usage import UsageTracker
 
 
 browser_recorder = declare_component("browser_recorder", path=str(Path(__file__).resolve().parent.parent / "assets" / "browser_recorder"))
@@ -26,6 +27,7 @@ class BrowserAudioSession:
         self.config = copy.deepcopy(config)
         self.analysis_interval = self.config.get("analysis_interval", ANALYSIS_INTERVAL)
         self.session_id = session_id
+        self.usage_tracker = UsageTracker(session_id=session_id)
         self.events = queue.Queue()
         self.stop_event = threading.Event()
         self.cancel_event = threading.Event()
@@ -112,6 +114,7 @@ class BrowserAudioSession:
             self.config, on_report=self._report,
             on_error=on_error,
             on_analysis=lambda active: self.events.put(("analysis", active)),
+            usage_tracker=self.usage_tracker,
         )
         return client
 
@@ -162,9 +165,14 @@ class BrowserAudioSession:
                     final = self.input_finished.is_set() and caught_up
                     due = elapsed - analyzed_at >= self.analysis_interval
                     if ready and caught_up and count and (due or recovered or final):
-                        self.checkpoint += 1
-                        client.analysis_number = self.checkpoint - 1
-                        client.request_analysis(timestamp=elapsed, commit=sent > committed)
+                        if final or client.has_intermediate_report:
+                            self.checkpoint += 1
+                            client.analysis_number = self.checkpoint - 1
+                            client.request_analysis(timestamp=elapsed, commit=sent > committed, is_final=final)
+                        elif sent > committed:
+                            # Keep audio items bounded even when no live report
+                            # fields are configured, and retain replay boundaries.
+                            client.commit_audio()
                         if sent > committed:
                             self.boundaries.append(sent)
                             committed = sent

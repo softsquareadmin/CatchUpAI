@@ -28,6 +28,7 @@ class ReportSection(TypedDict):
     type: str
     instruction: str
     required: bool
+    final_only: NotRequired[bool]
     options: NotRequired[list[str]]
     min: NotRequired[float]
     max: NotRequired[float]
@@ -102,7 +103,7 @@ def validate_report_sections(sections):
     if not isinstance(sections, list) or not sections:
         raise ValueError("Add at least one report section.")
     ids = set()
-    common = {"id", "label", "type", "instruction", "required"}
+    common = {"id", "label", "type", "instruction", "required", "final_only"}
     for index, section in enumerate(sections, 1):
         where = f"Report section {index}"
         _object(section, common | {"options", "min", "max", "max_items"}, where)
@@ -119,6 +120,8 @@ def validate_report_sections(sections):
             raise ValueError(f"{where}: unsupported type {kind}.")
         if type(section.get("required", True)) is not bool:
             raise ValueError(f"{where}: required must be a boolean.")
+        if type(section.get("final_only", False)) is not bool:
+            raise ValueError(f"{where}: final_only must be a boolean.")
         extra = {"status": {"options"}, "score": {"min", "max"}, "list": {"max_items"}}.get(kind, set())
         _object(section, common | extra, where)
         if kind == "status":

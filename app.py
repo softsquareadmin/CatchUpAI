@@ -8,7 +8,7 @@ import uuid
 
 import streamlit as st
 
-from catchupai.frontend import conversation_editor, editable_row, render_report, report_editor, workspace_styles, page_heading, panel_heading, welcome_card
+from catchupai.frontend import conversation_editor, editable_row, render_report, report_editor, workspace_styles, page_heading, panel_heading
 from catchupai.config import ANALYSIS_INTERVAL
 from catchupai.session import LiveSession
 from catchupai.browser_audio import BrowserAudioSession, browser_recorder
@@ -17,6 +17,7 @@ from catchupai.recording import recording_info
 from catchupai.report_export import build_report_document
 from catchupai.templates import list_templates, load_template, save_template, delete_template
 from catchupai.frontend import icon, inline_error, dismiss_row_confirmation
+from catchupai.topic_coverage import topic_coverage_html
 
 st.set_page_config(page_title="CatchUpAI", page_icon=str(Path(__file__).resolve().parent / "assets" / "icon.png"), layout="wide", initial_sidebar_state="expanded")
 workspace_styles()
@@ -78,6 +79,7 @@ def comparable_configuration(config):
     normalized["report"]["sections"] = normalize_section_ids(normalized["report"]["sections"])
     for section in normalized["report"]["sections"]:
         section.setdefault("required", True)
+        section.setdefault("final_only", False)
     return normalized
 
 
@@ -208,6 +210,7 @@ def start_session(config, recording_bytes=None, source_name=None, browser_sessio
     st.session_state.analysis_loading = False
     st.session_state.errors = []
     st.session_state.active_config = copy.deepcopy(config)
+    st.session_state.report_navigation = "coverage"
     st.session_state.source_name = source_name
     st.session_state.runtime_status = "Connecting"
     st.session_state.live = session
@@ -265,6 +268,15 @@ def reset_workspace():
     st.session_state.source_name = None
     st.session_state.reveal_at = 0.0
     st.session_state.recorder_reset_token = uuid.uuid4().hex
+    st.session_state.capture_mode = "Record Live"
+    st.session_state.report_navigation = "coverage"
+
+
+def load_capture_template():
+    template_id = st.session_state.capture_template
+    if template_id:
+        select_template(template_id)
+        load_selected_template()
 
 
 def upload_recording(config, disabled=False):
@@ -284,15 +296,14 @@ def upload_recording(config, disabled=False):
     minutes, seconds = divmod(int(info.duration), 60)
     size = len(recording_bytes) / (1024 * 1024)
     size_label = f"{size:.1f} MB" if size >= 1 else f"{len(recording_bytes) / 1024:.1f} KB"
-    with st.container(key="upload_file_card"):
-        details, remove = st.columns([8, 1], vertical_alignment="center")
+    with st.container(key="upload_file_card", gap=None):
+        details, remove = st.columns([12, 1], gap="small", vertical_alignment="center")
         with details:
-            st.markdown(f'<div class="uploaded-file"><svg viewBox="0 0 32 40" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2h16l8 8v28H4zM20 2v10h8M13 29V18l9-2v11"/><ellipse cx="10" cy="30" rx="3" ry="2" fill="currentColor"/><ellipse cx="19" cy="28" rx="3" ry="2" fill="currentColor"/></svg><div><strong>{escape(uploaded.name)}</strong><small>{size_label}</small></div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="uploaded-file"><svg viewBox="0 0 32 40" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2h16l8 8v28H4zM20 2v10h8M13 29V18l9-2v11"/><ellipse cx="10" cy="30" rx="3" ry="2" fill="currentColor"/><ellipse cx="19" cy="28" rx="3" ry="2" fill="currentColor"/></svg><div><strong title="{escape(uploaded.name, quote=True)}">{escape(uploaded.name)}</strong><div class="uploaded-metadata"><span>{size_label}</span><span class="uploaded-duration"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{minutes}:{seconds:02d}</span></div></div></div>', unsafe_allow_html=True)
         remove.button("Remove uploaded audio", icon=":material/close:", key="remove_uploaded_audio", help="Remove uploaded audio", disabled=disabled, on_click=clear_uploaded_recording)
-        st.markdown(f'<div class="uploaded-details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>{minutes}:{seconds:02d}</span></div>', unsafe_allow_html=True)
     session = st.session_state.live
     if session is not None and session.running and not isinstance(session, BrowserAudioSession):
-        if st.button("Cancel recording analysis", disabled=session.stop_event.is_set()):
+        if st.button("Cancel recording analysis", key="cancel_recording_analysis", disabled=session.stop_event.is_set(), width="stretch"):
             session.stop()
         return
     if st.button("Analyze recording", icon=":material/graphic_eq:", type="primary", disabled=disabled, width="stretch"):
@@ -339,38 +350,43 @@ def recorder_controls():
     error = configuration_error(config)
     with st.container(key="capture_card"):
         with st.container(key="capture_header"):
-            template_badge = ""
-            loaded_id = st.session_state.get("loaded_template_id")
-            if loaded_id:
-                try:
-                    loaded_name = escape(load_template(loaded_id)["name"])
-                    template_badge = (
-                        '<div class="capture-template"><span>Template</span>'
-                        f'<span class="capture-template-badge">{icon("file")}'
-                        f'<span>{loaded_name}</span></span></div>'
-                    )
-                except (OSError, ValueError, TypeError):
-                    pass
-            st.markdown(
-                '<div class="capture-heading-row"><div class="panel-heading">'
-                f'<span class="icon-tile solid">{icon("wave")}</span>'
-                '<div><h2>Record or Upload a Conversation</h2></div></div>'
-                f'{template_badge}</div>', unsafe_allow_html=True,
-            )
+            heading, template = st.columns([2.2, 1], vertical_alignment="center")
+            with heading:
+                st.markdown(
+                    '<div class="panel-heading">'
+                    f'<span class="icon-tile solid">{icon("wave")}</span>'
+                    '<div><h2>Record or Upload a Conversation</h2></div></div>', unsafe_allow_html=True,
+                )
+            with template:
+                templates, template_errors = list_templates()
+                names = {item["id"]: item["name"] for item in templates}
+                loaded_id = st.session_state.get("loaded_template_id")
+                options = [None, *names]
+                st.selectbox("Template", options, index=options.index(loaded_id) if loaded_id in names else 0,
+                             format_func=lambda value: names.get(value, "Current configuration"),
+                             key="capture_template", disabled=active, on_change=load_capture_template,
+                             label_visibility="collapsed")
+                if template_errors:
+                    inline_error(" ".join(template_errors))
             if st.button("Reset", key="reset_workspace", disabled=active, on_click=reset_workspace, help="Reset recording, uploaded file, and report. Keep your configuration."):
                 st.rerun()
         with st.container(key="capture_body"):
-            record, upload = st.columns([1.43, 1], gap="small")
-            with record, st.container(key="record_action"):
+            mode = st.session_state.get("capture_mode", "Record Live")
+            with st.container(key="record_action"):
                 browser_session = session if isinstance(session, BrowserAudioSession) else None
                 message = browser_recorder(
                     session_id=browser_session.session_id if browser_session else None,
                     ack=browser_session.highest_sequence if browser_session else -1,
                     busy=active, disabled=error is not None,
                     status=st.session_state.runtime_status,
+                    mode=mode,
                     reset_token=st.session_state.get("recorder_reset_token"),
                     key="live_browser_recorder", default=None,
                 )
+                if message and message.get("mode") in ("Record Live", "Upload Audio") and not active:
+                    if message["mode"] != mode:
+                        st.session_state.capture_mode = message["mode"]
+                        st.rerun()
                 if message and message.get("cancelled"):
                     st.session_state.browser_started_ids.add(message["session_id"])
                     if isinstance(session, BrowserAudioSession) and session.session_id == message["session_id"]:
@@ -390,10 +406,9 @@ def recorder_controls():
                             st.error(str(audio_error))
                     if message.get("error"):
                         st.error(message["error"])
-            with upload, st.container(key="upload_action"):
-                st.markdown("### Upload audio")
-                st.caption("Upload an existing audio file to analyze.")
-                upload_recording(config, disabled=active or error is not None)
+            if mode == "Upload Audio":
+                with st.container(key="upload_action"):
+                    upload_recording(config, disabled=active or error is not None)
     if error:
         st.warning(f"Update Configurations before starting: {error}")
     # Refresh navigation and reports only when the session changes running state.
@@ -411,41 +426,79 @@ def workspace_updates(show_home):
     if not show_home:
         return
     active = session is not None and session.running
-    for message in st.session_state.errors[-5:]:
-        st.error(message)
-    if st.session_state.analysis_loading or st.session_state.pending_report is not None:
-        label = "Loading new report…" if st.session_state.pending_report is not None else "Analyzing conversation…"
-        st.markdown(f'<div class="report-loader" role="status" aria-live="polite"><span aria-hidden="true"></span>{label}</div>', unsafe_allow_html=True)
     result = st.session_state.latest
-    if result is not None:
-        completed = not active and st.session_state.pending_report is None and not st.session_state.analysis_loading
-        with st.container(key="analysis_report"):
-            with st.container(key="analysis_report_header"):
-                heading, download = st.columns([4, 1], vertical_alignment="center")
+    config = st.session_state.active_config or st.session_state.draft_config
+    topics = config["conversation"].get("topics_to_cover", [])
+    sections = {f"section:{section['id']}": section for section in config["report"]["sections"]}
+    labels = {"coverage": "Topic Coverage", **{key: section["label"] for key, section in sections.items()}}
+    if st.session_state.get("report_navigation") not in labels:
+        st.session_state.report_navigation = "coverage"
+    todo, report = st.columns([1, 2.45], gap="small")
+    with todo, st.container(key="studio_todo", gap=None):
+        with st.container(key="studio_todo_header"):
+            panel_heading("To do", "list", strong=True)
+        with st.container(height=430, border=False, key="report_navigation_scroll"):
+            selected = st.radio("Report sections", options=list(labels), format_func=labels.get,
+                                key="report_navigation", label_visibility="collapsed")
+    with report, st.container(key="studio_report", gap=None):
+        completed = result is not None and not active and st.session_state.pending_report is None and not st.session_state.analysis_loading
+        with st.container(key="studio_report_header"):
+            checkpoint = ""
+            status_label = ""
+            if st.session_state.pending_report is not None:
+                status_label = "Loading new report…"
+            elif st.session_state.analysis_loading:
+                status_label = "Analyzing conversation…"
+            elif active:
+                runtime_status = st.session_state.runtime_status
+                if runtime_status in ("Connecting", "Processing recording", "Finishing report", "Restoring conversation") or runtime_status.startswith("Reconnecting"):
+                    status_label = runtime_status
+            if status_label:
+                checkpoint = f'<span class="report-checkpoint report-header-status" role="status" aria-live="polite"><span class="report-status-spinner" aria-hidden="true"></span>{escape(status_label)}</span>'
+            elif result is not None:
                 minutes, seconds = divmod(int(result["timestamp"]), 60)
-                with heading:
-                    panel_heading("Final report" if completed and not st.session_state.errors else "Conversation report", "chart", f"Checkpoint {result['checkpoint']} | {minutes}:{seconds:02d} of conversation", strong=True)
-                if completed:
-                    download.download_button(
-                        "Download report", icon=":material/download:",
-                        data=build_report_document(st.session_state.active_config, result, st.session_state.source_name),
-                        file_name="CatchUpAI-report.html", mime="text/html", key="download_report",
-                        on_click="ignore", help="Download a readable report. Open it in a browser to print or save as PDF.",
-                    )
-            with st.container(key="analysis_report_body"):
-                if completed and st.session_state.errors:
-                    st.caption("This download contains the latest valid report; the session ended with errors.")
-                render_report(st.session_state.active_config["report"]["sections"], result["report"], st.session_state.active_config["conversation"].get("topics_to_cover", []))
-    elif not active and st.session_state.pending_report is None:
-        welcome_card()
-    elif result is None and st.session_state.pending_report is None:
-        st.caption("Your report will appear here once the complete recording has been analyzed." if st.session_state.source_name else "Your first report will appear here after the next analysis checkpoint.")
+                checkpoint = f'<span class="report-checkpoint">Checkpoint {result["checkpoint"]} | {minutes}:{seconds:02d} of conversation</span>'
+            st.markdown(f'<div class="panel-heading report-header-heading"><span class="icon-tile solid">{icon("chart")}</span><h2>{escape(f"Report - {labels[selected]}")}</h2>{checkpoint}</div>', unsafe_allow_html=True)
+            with st.container(key="report_header_download"):
+                st.download_button(
+                    "Download report",
+                    data=build_report_document(config, result, st.session_state.source_name) if completed else "",
+                    file_name="CatchUpAI-report.html", mime="text/html", key="download_report",
+                    disabled=not completed, on_click="ignore",
+                    help="Download a readable report. Open it in a browser to print or save as PDF.",
+                )
+        with st.container(height=430, border=False, key="report_content_scroll"):
+            for message in st.session_state.errors[-5:]:
+                st.error(message)
+            if result is None:
+                if selected == "coverage" and topics:
+                    st.markdown(topic_coverage_html(topics, {}, show_heading=False), unsafe_allow_html=True)
+                elif selected == "coverage":
+                    st.caption("Add topics in Configurations to track what still needs to be covered.")
+                elif sections[selected].get("final_only", False):
+                    st.caption("This section will be generated after recording ends or when an uploaded recording is analyzed.")
+                else:
+                    st.caption("Your report will appear here once the complete recording has been analyzed." if st.session_state.source_name else "Start recording or upload audio to see this report section.")
+                return
+            if completed and st.session_state.errors:
+                st.caption("This download contains the latest valid report; the session ended with errors.")
+            if selected == "coverage":
+                if topics:
+                    st.markdown(topic_coverage_html(topics, result["report"], show_heading=False), unsafe_allow_html=True)
+                else:
+                    st.caption("Add topics in Configurations to track what still needs to be covered.")
+            else:
+                section = sections[selected]
+                if section.get("final_only", False) and not result.get("is_final", False):
+                    st.caption("This section will be generated after recording ends or when an uploaded recording is analyzed.")
+                else:
+                    render_report([section], result["report"], show_heading=False)
 
 
 if page == "Conversation Studio":
-    page_heading("Conversation Studio", "Listen closely. Keep what matters. Start recording or upload a conversation below.")
-    recorder_controls()
-    workspace_updates(True)
+    with st.container(key="recording_workspace"):
+        recorder_controls()
+        workspace_updates(True)
 else:
     heading, interval_button = st.columns([4, 1], vertical_alignment="top")
     with heading:

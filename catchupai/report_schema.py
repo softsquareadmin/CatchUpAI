@@ -10,11 +10,13 @@ from .models import validate_report_sections
 TOOL_NAME = "update_conversation_report"
 
 
-def build_report_schema(report_sections, topics=()):
+def build_report_schema(report_sections, topics=(), *, is_final=True):
     validate_report_sections(report_sections)
     properties = {}
     required = []
     for section in report_sections:
+        if section.get("final_only", False) and not is_final:
+            continue
         kind = section["type"]
         field = {"description": section["instruction"]}
         if kind == "text":
@@ -56,12 +58,12 @@ def build_report_schema(report_sections, topics=()):
     return schema
 
 
-def build_analysis_tool(report_config, topics=()):
+def build_analysis_tool(report_config, topics=(), *, is_final=True):
     return {
         "type": "function",
         "name": TOOL_NAME,
         "description": "Return the current structured conversation analysis using the configured report fields.",
-        "parameters": build_report_schema(report_config["sections"], topics),
+        "parameters": build_report_schema(report_config["sections"], topics, is_final=is_final),
     }
 
 

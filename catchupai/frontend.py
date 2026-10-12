@@ -45,6 +45,7 @@ def icon(name):
         "bulb": '<path d="M9 18h6m-6 3h6m-6-6c-5-4-3-12 3-12s8 8 3 12v3H9Z"/>',
         "mic": '<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2m-7 9v3m-4 0h8"/>',
         "file": '<path d="M14 2H5v20h14V7Zm0 0v5h5M8 11h8m-8 4h8m-8 4h5"/>',
+        "list": '<path d="m3 6 1 1 2-2m-3 7 1 1 2-2m-3 7 1 1 2-2M10 6h11M10 12h11M10 18h11"/>',
         "target": '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
         "users": '<circle cx="9" cy="7" r="3"/><path d="M3 21v-4a6 6 0 0 1 12 0v4Zm13-17a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5v3"/>',
     }
@@ -326,8 +327,11 @@ def report_editor(disabled=False, tracking_topics=False):
             left, right = st.columns(2)
             kind = left.selectbox("Section Type", FIELD_TYPES, index=FIELD_TYPES.index(section["type"]), key=f"type_{key}", format_func=str.title, disabled=disabled)
             required = right.checkbox("Required", value=section.get("required", True), key=f"required_{key}", disabled=disabled)
+            final_only = st.checkbox("Generate only in final report", value=section.get("final_only", False),
+                                     key=f"final_only_{key}", disabled=disabled,
+                                     help="Generate this section after you stop recording or analyze an uploaded file. Skip it in live checkpoints.")
             instruction = st.text_area("Instruction", value=section["instruction"], key=f"instruction_{key}", height=85, disabled=disabled)
-            updated = {"label": label.strip(), "type": kind, "instruction": instruction.strip(), "required": required}
+            updated = {"label": label.strip(), "type": kind, "instruction": instruction.strip(), "required": required, "final_only": final_only}
             if kind == "status":
                 options_key = f"option_rows_{key}"
                 if options_key not in st.session_state:
@@ -376,18 +380,15 @@ def report_editor(disabled=False, tracking_topics=False):
     return {"sections": normalize_section_ids(sections)}
 
 
-def render_report(sections, report, topics=()):
-    coverage = topic_coverage_html(topics, report)
+def render_report(sections, report, topics=(), *, show_heading=True):
+    coverage = topic_coverage_html(topics, report, show_heading=show_heading)
     if coverage:
         st.markdown(coverage, unsafe_allow_html=True)
     cards = []
-    for index, section in enumerate(sections, 1):
+    for section in sections:
         value = report.get(section["id"])
         kind = section["type"]
-        symbol = "file" if kind == "text" else "target" if kind == "list" else "chart"
         is_question = "question" in section["id"].lower()
-        if is_question:
-            symbol = "bulb"
         if value is None:
             message = "Unknown / not yet established" if section["id"] in report else "Not provided"
             body = f'<p class="report-empty">{message}</p>'
@@ -404,5 +405,8 @@ def render_report(sections, report, topics=()):
             body = f'<div class="report-score">{value:g}<span> / {section["max"]:g}</span></div><p class="report-empty">Configured range: {section["min"]:g} to {section["max"]:g}</p>'
         else:
             body = f'<p class="report-prose">{escape(str(value))}</p>' if value else '<p class="report-empty">Nothing established yet</p>'
-        cards.append(f'<section class="report-section {"question-section" if is_question else ""}"><div class="report-section-heading"><span class="icon-tile">{icon(symbol)}</span><h3>{escape(section["label"])}</h3><span class="report-section-number">{index:02d}</span></div><div class="report-section-content">{body}</div></section>')
+        if show_heading:
+            cards.append(f'<section class="report-section {"question-section" if is_question else ""}"><div class="report-section-heading"><span class="icon-tile">{icon("file")}</span><h3>{escape(section["label"])}</h3></div><div class="report-section-content">{body}</div></section>')
+        else:
+            cards.append(body)
     st.markdown('<div class="report-sections">' + ''.join(cards) + '</div>', unsafe_allow_html=True)

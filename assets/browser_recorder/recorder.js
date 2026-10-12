@@ -39,6 +39,10 @@
   }
   const waveform = $("waveform").getContext("2d");
   const waveformSamples = new Float32Array(512);
+  const resizeFrame = () => send("streamlit:setFrameHeight", {
+    height: Math.max(128, Math.ceil(document.body.getBoundingClientRect().height)),
+  });
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(resizeFrame).observe(document.body);
 
   function transaction(storeNames, mode, action) {
     return new Promise((resolve, reject) => {
@@ -69,10 +73,10 @@
     render();
   }
   function selection() {
-    $("library").hidden = !lastRecordingId || capturing || starting;
-    $("download").disabled = !lastRecordingId;
+    $("library").hidden = false;
+    $("download").disabled = !lastRecordingId || capturing || starting;
     $("again").disabled = $("record").disabled;
-    $("remove").disabled = !lastRecordingId || (lastRecordingId === id && acknowledged < savedSequence);
+    $("remove").disabled = !lastRecordingId || capturing || starting || (lastRecordingId === id && acknowledged < savedSequence);
   }
   async function deleteRecording(recordingId) {
     await transaction(["recordings", "chunks"], "readwrite", tx => {
@@ -106,14 +110,25 @@
     document.body.dataset.recording = String(capturing);
     document.body.dataset.paused = String(paused);
     document.body.dataset.complete = String(Boolean(lastRecordingId) && !capturing);
+    document.body.dataset.mode = args.mode || "Record Live";
+    const liveMode = document.body.dataset.mode === "Record Live";
+    const modeLocked = capturing || starting || args.busy;
+    for (const [tab, selected] of [[$("live-tab"), liveMode], [$("upload"), !liveMode]]) {
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      tab.disabled = !selected && Boolean(modeLocked);
+    }
+    $("live-panel").hidden = !liveMode;
+    $("upload-panel").hidden = liveMode;
     const seconds = Math.floor(savedBytes / 48000);
     $("timer").textContent = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
     $("cancel").hidden = !capturing;
     $("cancel").disabled = starting;
-    $("record").textContent = capturing ? "Stop recording" : "Record Live";
+    $("record").textContent = capturing ? "Stop" : "Record";
     $("record").disabled = !db || starting || (!capturing && (args.disabled || args.busy || (id && !stopped)));
     $("pause").textContent = paused ? "Resume" : "Pause";
     $("pause").disabled = !capturing || starting;
+    $("pause").hidden = !capturing;
     let status = args.status || "Ready";
     if (status.startsWith("Reconnecting")) {
       const attempt = status.match(/attempt \d+/);
@@ -128,7 +143,7 @@
     $("status").textContent = status;
     $("waveform").hidden = !capturing;
     selection();
-    send("streamlit:setFrameHeight", {height: document.body.scrollHeight + 8});
+    resizeFrame();
   }
   async function publish() {
     if (!db || !id || publishing) return;
@@ -291,7 +306,29 @@
   }
   $("cancel").onclick = () => cancel().catch(failStorage);
   $("again").onclick = () => start().catch(failStorage);
-  $("record").onclick = () => (capturing ? stop() : start()).catch(failStorage);
+  function selectMode(mode) {
+    if (capturing || starting || args.busy || mode === (args.mode || "Record Live")) return;
+    args.mode = mode;
+    render();
+    value({mode});
+  }
+  $("live-tab").onclick = () => selectMode("Record Live");
+  $("upload").onclick = () => selectMode("Upload Audio");
+  for (const tab of [$("live-tab"), $("upload")]) {
+    tab.onkeydown = event => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const target = event.key === "Home" ? $("live-tab") : event.key === "End" ? $("upload") :
+        (tab === $("live-tab") ? $("upload") : $("live-tab"));
+      if (target.disabled) return;
+      selectMode(target === $("live-tab") ? "Record Live" : "Upload Audio");
+      target.focus();
+    };
+  }
+  $("record").onclick = () => {
+    if (args.mode === "Upload Audio") return;
+    (capturing ? stop() : start()).catch(failStorage);
+  };
   $("pause").onclick = togglePause;
   $("download").onclick = async () => {
     try {
@@ -344,5 +381,5 @@
   request.onerror = () => { $("error").textContent = "Browser storage is unavailable. Recording cannot start."; };
   setInterval(publish, 500);
   send("streamlit:componentReady", {apiVersion: 1});
-  send("streamlit:setFrameHeight", {height: 260});
+  send("streamlit:setFrameHeight", {height: 128});
 })();

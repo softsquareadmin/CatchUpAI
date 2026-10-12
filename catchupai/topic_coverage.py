@@ -11,7 +11,7 @@ def coverage_status(result):
     return "unanswered"
 
 
-def topic_coverage_html(topics, report):
+def topic_coverage_html(topics, report, *, show_heading=True):
     if not topics:
         return ""
     results = report.get("topic_coverage", {})
@@ -34,12 +34,7 @@ def topic_coverage_html(topics, report):
         status = statuses[topic["id"]]
         body = '<p class="coverage-empty">Waiting for topic analysis.</p>'
         if result:
-            cards = []
-            if result["summary"]:
-                cards.append(f'<div class="coverage-info"><span class="coverage-info-icon" aria-hidden="true">&#9776;</span><div><strong>Answer summary</strong><p>{escape(result["summary"])}</p></div></div>')
-            if status != "covered" and result["suggested_question"]:
-                cards.append(f'<div class="coverage-info"><span class="coverage-info-icon" aria-hidden="true">&#8943;</span><div><strong>Suggested follow-up question</strong><p>{escape(result["suggested_question"])}</p></div></div>')
-            parts = [f'<div class="coverage-info-grid">{"".join(cards)}</div>'] if cards else []
+            parts = []
             if status == "unanswered":
                 parts.append(f'<p class="coverage-empty">{"Asked, no usable answer" if result["asked"] else "Not asked; no answer provided"}</p>')
             parts.append('<h3 class="coverage-criteria-heading">Key points and coverage</h3><ul class="coverage-criteria">')
@@ -57,7 +52,8 @@ def topic_coverage_html(topics, report):
         percent = scores[status]
         meter = f'<span class="coverage-topic-score">{percent}%</span><span class="coverage-mini-track" aria-hidden="true"><span style="width:{percent}%"></span></span>' if status != 'pending' else ''
         rows.append(f'<details class="coverage-topic {status}"><summary><span class="coverage-chevron" aria-hidden="true"></span><span class="coverage-symbol" aria-hidden="true">{symbols[status]}</span><strong class="coverage-topic-title">{escape(topic["label"])}</strong>{meter}<span class="coverage-label">{labels[status]}</span></summary><div class="coverage-body">{body}</div></details>')
-    return f'<section class="topic-coverage"><h2>Topic Coverage</h2><p class="coverage-count">Coverage score based on the conversation analyzed so far.</p><div class="coverage-dashboard"><div class="coverage-ring" style="--coverage:{score}%"><div><strong>{score}%</strong><span>Overall<br>coverage</span></div></div><div class="coverage-dashboard-main"><div class="coverage-stats">{stats}</div><div class="coverage-progress"><div class="coverage-track" role="progressbar" aria-label="Overall topic coverage" aria-valuenow="{score}" aria-valuemin="0" aria-valuemax="100"><span style="width:{score}%"></span></div><span><strong>{score}%</strong> coverage</span></div>{pending_note}</div></div><div class="coverage-topics-scroll" role="region" aria-label="Individual topic coverage" tabindex="0">{"".join(rows)}</div></section>'
+    heading = '<h2>Topic Coverage</h2>' if show_heading else ''
+    return f'<section class="topic-coverage">{heading}<p class="coverage-count">Coverage score based on the conversation analyzed so far.</p><div class="coverage-dashboard"><div class="coverage-ring" style="--coverage:{score}%"><div><strong>{score}%</strong><span>Overall<br>coverage</span></div></div><div class="coverage-dashboard-main"><div class="coverage-stats">{stats}</div><div class="coverage-progress"><div class="coverage-track" role="progressbar" aria-label="Overall topic coverage" aria-valuenow="{score}" aria-valuemin="0" aria-valuemax="100"><span style="width:{score}%"></span></div><span><strong>{score}%</strong> coverage</span></div>{pending_note}</div></div><div class="coverage-topics-scroll" role="region" aria-label="Individual topic coverage" tabindex="0">{"".join(rows)}</div></section>'
 
 
 COVERAGE_CSS = """
@@ -109,10 +105,6 @@ COVERAGE_CSS = """
 .coverage-mini-track { width:76px; height:9px; flex-shrink:0; margin-left:-9px; }
 .coverage-mini-track > span { background:var(--status-color); }
 .coverage-body { padding:12px 14px 18px; font-size:12px; line-height:1.45; }
-.coverage-info-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:10px; }
-.coverage-info { display:flex; gap:12px; padding:12px; border-radius:9px; background:linear-gradient(110deg,#edf5ff,#f2f7ff); }
-.coverage-info-icon { display:flex; align-items:center; justify-content:center; width:38px; height:38px; flex-shrink:0; color:#087bff; background:#dfedff; border-radius:50%; font-size:26px; }
-.coverage-info strong { color:#122657; }
 .topic-coverage .coverage-body p { margin:3px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; line-height:1.45; color:#425d90; }
 .topic-coverage .coverage-criteria-heading { font-size:13px; padding:8px 0 0; border-top:1px solid #e4ecf8; margin:0 0 8px; color:#15285a; }
 .coverage-criteria { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 24px; list-style:none; padding:0; margin:0; }
@@ -123,6 +115,6 @@ COVERAGE_CSS = """
 .coverage-criterion .coverage-label { padding:3px 12px; }
 .topic-coverage .coverage-criterion p { font-size:11px; }
 @media (max-width:900px) { .coverage-dashboard { gap:20px; margin-left:0; margin-right:0; } .coverage-dashboard-main { padding-left:18px; } .coverage-stat { padding:0 12px; gap:8px; } .coverage-stat-number { font-size:26px; } }
-@media (max-width:640px) { .topic-coverage { padding:12px; } .coverage-dashboard { flex-direction:column; align-items:stretch; } .coverage-ring { align-self:center; } .coverage-dashboard-main { border:0; padding:0; } .coverage-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; } .coverage-stat { padding:0 8px; } .coverage-stat:nth-child(2) { border:0; } .coverage-info-grid,.coverage-criteria { grid-template-columns:1fr; } .coverage-topic summary { gap:8px; flex-wrap:wrap; } .coverage-topic-title { flex-basis:calc(100% - 70px); } .coverage-topic-score { margin-left:40px; } .coverage-mini-track { margin-left:0; } .coverage-topic summary > .coverage-label { margin-left:auto; } }
+@media (max-width:640px) { .topic-coverage { padding:12px; } .coverage-dashboard { flex-direction:column; align-items:stretch; } .coverage-ring { align-self:center; } .coverage-dashboard-main { border:0; padding:0; } .coverage-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; } .coverage-stat { padding:0 8px; } .coverage-stat:nth-child(2) { border:0; } .coverage-criteria { grid-template-columns:1fr; } .coverage-topic summary { gap:8px; flex-wrap:wrap; } .coverage-topic-title { flex-basis:calc(100% - 70px); } .coverage-topic-score { margin-left:40px; } .coverage-mini-track { margin-left:0; } .coverage-topic summary > .coverage-label { margin-left:auto; } }
 @media print { .coverage-topics-scroll { max-height:none; overflow:visible; padding-right:0; } .coverage-topic > .coverage-body { display:block !important; } .coverage-topic { break-inside:avoid; } .topic-coverage { print-color-adjust:exact; -webkit-print-color-adjust:exact; } }
 """

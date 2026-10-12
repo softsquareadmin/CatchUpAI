@@ -65,6 +65,8 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
 
     copilot = RealtimeConversationAnalyzer(config, on_report=on_report, on_error=on_error, on_analysis=on_analysis)
     audio_since_commit = False
+    audio_sent = False
+    session_failed = False
     start_time = None
     
     try:
@@ -104,6 +106,7 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
                 chunk = np.asarray(chunk, dtype=np.float32,)
                 copilot.send_audio(chunk)
                 audio_since_commit = True
+                audio_sent = True
                 now = time.monotonic()
                 elapsed = (now - start_time)
 
@@ -113,7 +116,10 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
                     print("************************************")
 
                     if audio_since_commit:
-                        copilot.request_analysis(timestamp=elapsed)
+                        if copilot.has_intermediate_report:
+                            copilot.request_analysis(timestamp=elapsed)
+                        else:
+                            copilot.commit_audio()
                         audio_since_commit = False
 
                     last_analysis_time = now
@@ -130,6 +136,7 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
         print("====================================")
 
     except Exception as error:
+        session_failed = True
         print("\nAPPLICATION ERROR:")
         print(repr(error))
         if on_error and not copilot.connection_failed.is_set():
@@ -138,10 +145,14 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
 
     finally:
         status("Stopping")
-        if audio_since_commit and not copilot.connection_failed.is_set():
+        if audio_sent and not session_failed and not copilot.connection_failed.is_set():
             try:
+                if copilot.pending_responses:
+                    copilot.wait_for_responses(timeout=30)
+                    if copilot.pending_responses:
+                        raise TimeoutError("The previous report did not complete before final generation.")
                 print("\nRequesting final analysis...")
-                copilot.request_analysis(timestamp=time.monotonic() - start_time)
+                copilot.request_analysis(timestamp=time.monotonic() - start_time, commit=audio_since_commit, is_final=True)
             except Exception as error:
                 if on_error and not copilot.connection_failed.is_set():
                     on_error(f"Final analysis request failed: {error}")

@@ -9,6 +9,14 @@ save the Conversation Configuration and Custom Report together. Saved templates
 include focus areas, topics and coverage criteria, participant roles, and report
 sections with their instructions and field settings.
 
+Each Custom Report section has a **Generate only in final report** checkbox.
+Leave it unchecked for live checkpoint updates, or check it to generate that
+section only after **Stop** or when analyzing an uploaded recording. Final-only
+sections are excluded from intermediate report schemas and instructions; the
+final report includes all sections. Topic coverage continues to update during
+recording. This setting is saved with the template, and existing templates
+default to updating every section during live checkpoints.
+
 Select a saved template and choose **Load** to fill both editors. After editing,
 choose **Save changes** to update the loaded template, or use a different, unique
 name with **Save as new** to keep a separate copy. Each template in the dropdown
@@ -40,6 +48,23 @@ and the existing `OPENAI_API_KEY`. The default model is `gpt-5.4-mini`; set
 Structured Outputs. Documents are sent in full rather than clipped locally.
 
 CatchUp listens to conversations and helps you understand what you may have missed.
+
+API usage is printed in the server terminal and appended to `logs/api_usage.jsonl`
+(excluded from Git). Each response records its ID, logical session ID, model,
+raw token usage, cached-token details, calculated USD cost, and the price list
+used. Live, uploaded-recording, and document-extraction requests are covered.
+Failed responses and validation retries count too; duplicate response IDs do not.
+Browser reconnects retain the same session total. No audio, prompts, report
+contents, or document contents are written to this usage log.
+
+`observed_cost_usd` is the sum of responses that could be priced. Missing usage
+or unknown model prices produce `cost_usd: null` and an incomplete total; a lost
+connection also marks the total incomplete because final usage may not arrive.
+Prices in `catchupai/usage.py` were checked on 2026-10-12 and need updating when
+OpenAI changes them. Calculated costs exclude taxes, credits, account discounts,
+hosting, and currency conversion; reconcile against OpenAI billing for the final
+charge. Run the offline checks with
+`python -m unittest discover -s tests -p "test_*.py"`.
 
 It identifies important points, unanswered questions, action items, key details, and useful suggestions — so you can stay focused on the conversation instead of worrying about remembering everything.
 

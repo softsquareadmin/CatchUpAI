@@ -17,22 +17,33 @@ from .config import (
     OPENAI_API_KEY,
     OPENAI_SAMPLE_RATE,
     REALTIME_URL,
+    MODEL,
 )
 from .models import default_config, validate_config
 from .prompts import CORE_SYSTEM_INSTRUCTION, build_analysis_instructions
 from .report_schema import TOOL_NAME, build_analysis_tool, validate_report
+from .usage import UsageTracker
 
 
 class RealtimeConversationAnalyzer:
-    def __init__(self, config=None, on_report=None, on_error=None, on_analysis=None, require_full_context=False):
+    def __init__(self, config=None, on_report=None, on_error=None, on_analysis=None, require_full_context=False, usage_tracker=None):
         self.config = copy.deepcopy(config if config is not None else default_config())
         validate_config(self.config)
-        self.analysis_instructions = build_analysis_instructions(self.config)
-        self.analysis_tool = build_analysis_tool(self.config["report"], self.config["conversation"].get("topics_to_cover", []))
+        self.analysis_instructions = {
+            is_final: build_analysis_instructions(self.config, is_final=is_final)
+            for is_final in (False, True)
+        }
+        self.analysis_tools = {
+            is_final: build_analysis_tool(self.config["report"], self.config["conversation"].get("topics_to_cover", []), is_final=is_final)
+            for is_final in (False, True)
+        }
+        self.has_intermediate_report = bool(self.analysis_tools[False]["parameters"]["properties"])
         self.on_report = on_report
         self.on_error = on_error
         self.on_analysis = on_analysis
         self.require_full_context = require_full_context
+        self.usage_tracker = usage_tracker if usage_tracker is not None else UsageTracker()
+        self.model = MODEL
         self.requests = {}
         self.request_attempts = {}
         self.request_events = {}
@@ -69,6 +80,7 @@ class RealtimeConversationAnalyzer:
 
         if event_type == "error": raise RuntimeError(json.dumps(event, indent=2))
         if event_type != "session.created": raise RuntimeError(f"Expected session.created, "f"got {event_type}")
+        self.model = (event.get("session") or {}).get("model") or MODEL
         self._configure_session()
         self._start_receiver()
         self.started_at = time.monotonic()
@@ -136,6 +148,7 @@ class RealtimeConversationAnalyzer:
             if self.connection_failed.is_set():
                 return
             self.connection_failed.set()
+            self.usage_tracker.mark_gap("connection_lost")
             for result in self.analysis_results.values():
                 if "result" not in result and "error" not in result:
                     result["error"] = "Connection lost before this report completed."
@@ -205,6 +218,13 @@ class RealtimeConversationAnalyzer:
         elif event_type == "response.done":
             response = event.get("response", {})
             response_id = response.get("id")
+            # Charge every terminal response once, even if validation fails or
+            # its report is no longer associated with a pending request.
+            self.usage_tracker.record(
+                response_id, self.model, response.get("usage"),
+                purpose=(response.get("metadata") or {}).get("purpose"),
+                status=response.get("status"),
+            )
             result = self.analysis_results.get(response_id)
             if result is None or response_id in self.completed_responses:
                 return
@@ -220,7 +240,8 @@ class RealtimeConversationAnalyzer:
                     raise ValueError("Expected one completed update_conversation_report function call.")
                 try:
                     report = json.loads(calls[0]["arguments"])
-                    validate_report(report, self.analysis_tool["parameters"])
+                    tool = self.analysis_tools[result["metadata"]["is_final"]]
+                    validate_report(report, tool["parameters"])
                 except (ValueError, TypeError, KeyError) as error:
                     purpose = result["purpose"]
                     if self.request_attempts.get(purpose, 0) >= 1:
@@ -265,7 +286,8 @@ class RealtimeConversationAnalyzer:
         self._send({"type": "input_audio_buffer.commit"})
 
     def _send_analysis_request(self, purpose, validation_error=None):
-        instructions = self.analysis_instructions
+        is_final = self.requests[purpose]["is_final"]
+        instructions = self.analysis_instructions[is_final]
         if validation_error is not None:
             instructions += (
                 "\nREPORT RETRY\nThe previous report failed local validation. Generate a new\n"
@@ -280,14 +302,18 @@ class RealtimeConversationAnalyzer:
             "response": {
                 "conversation": "none",
                 "output_modalities": ["text"],
-                "metadata": {"purpose": purpose},
+                "metadata": {"purpose": purpose, "phase": "final" if is_final else "intermediate"},
                 "instructions": instructions,
-                "tools": [self.analysis_tool],
+                "tools": [self.analysis_tools[is_final]],
                 "tool_choice": {"type": "function", "name": TOOL_NAME},
             }
         })
 
-    def request_analysis(self, timestamp=None, commit=True):
+    def request_analysis(self, timestamp=None, commit=True, *, is_final=False):
+        # No model request is needed when every section is final-only and there
+        # are no topics. Capture flows still commit audio for the final report.
+        if not is_final and not self.has_intermediate_report:
+            return False
         self.analysis_number += 1
         purpose = (f"analysis_{self.analysis_number}")
         if commit:
@@ -298,6 +324,7 @@ class RealtimeConversationAnalyzer:
                 raise RuntimeError("Realtime connection is unavailable; restart the session.")
             self.requests[purpose] = {
                 "checkpoint": self.analysis_number,
+                "is_final": is_final,
                 "timestamp": round(timestamp if timestamp is not None else time.monotonic() - self.started_at, 3),
             }
             self.request_events[f"request_{purpose}"] = purpose
@@ -314,6 +341,7 @@ class RealtimeConversationAnalyzer:
             raise
 
         print(f"\n>>> " f"{purpose.upper()} REQUESTED")
+        return True
 
     def print_results(self):
         print("\n\n" "====================================")
@@ -352,6 +380,9 @@ class RealtimeConversationAnalyzer:
         if self.receiver_thread and self.receiver_thread is not threading.current_thread():
             self.receiver_thread.join(timeout=2)
 
+        if self.pending_responses and not self.connection_failed.is_set():
+            self.usage_tracker.mark_gap("closed_before_response_usage")
+        self.usage_tracker.log_summary()
         print("Realtime connection closed.")
 
 
