@@ -17,6 +17,14 @@ final report includes all sections. Topic coverage continues to update during
 recording. This setting is saved with the template, and existing templates
 default to updating every section during live checkpoints.
 
+Under **CRM content**, choose **Add CRM content** and paste a record from your
+CRM as a JSON object (up to 20,000 characters). CatchUpAI adds a **Record Check**
+report section and, at each checkpoint, compares what was said with the record.
+Each field is reported as Consistent, Differs or Not mentioned, with a short quote.
+Differences are flagged for human review, not as conclusions. The record is saved
+with the template. **Remove** deletes the record and its Record Check section. The
+record is sent to OpenAI with the conversation, so only paste data you may share.
+
 Select a saved template and choose **Load** to fill both editors. After editing,
 choose **Save changes** to update the loaded template, or use a different, unique
 name with **Save as new** to keep a separate copy. Each template in the dropdown

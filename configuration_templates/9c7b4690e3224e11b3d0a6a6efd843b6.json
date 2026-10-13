@@ -1,302 +1,173 @@
 {
   "version": 1,
   "id": "9c7b4690e3224e11b3d0a6a6efd843b6",
-  "name": "Testing Template 2",
+  "name": "CPS Worker Point",
   "config": {
     "conversation": {
-      "purpose": "Track the interview against its goals, capture the candidate’s experience and skills, and identify important topics that remain unanswered or need clarification. Suggest follow-up questions to help the interviewer assess the candidate’s suitability for the role.",
+      "purpose": "Track the child protective services interview against its investigative goals. Capture the child's account of the reported incident, assess immediate safety risks, identify inconsistencies between participant accounts, and flag topics that remain unaddressed or need clarification. Suggest follow-up questions to help the CPS worker assess the child's safety and the caregiver's protective capacity.",
       "pay_attention_to": [
-        "Important facts",
-        "Questions",
-        "Decisions",
-        "Unresolved items"
+        "Child's direct disclosure of abuse, fear, or unsafe conditions",
+        "Inconsistencies between the child's, parent's, and caregiver's accounts",
+        "Physical injury details, severity, and whether medical care was sought",
+        "Child's emotional state, distress signals, and willingness to speak",
+        "Parent or guardian's protective response and believability",
+        "Identification of all household members and caregivers present"
       ],
       "topics_to_cover": [
         {
-          "id": "topic_07e9772a565d4fbe9a0f0f04fef75750",
-          "label": "Professional background and career motivation",
+          "id": "topic_cps_001",
+          "label": "Consent & Interview Setup",
           "criteria": [
-            "candidate's educational background",
-            "relevant employment or internship experiences",
-            "significant responsibilities",
-            "professional interests",
-            "career aspirations",
-            "how the opportunity aligns with longer-term goals",
-            "relationship between past experiences and motivation for pursuing the position"
+            "Recording consent obtained from all participants before the interview began",
+            "Each participant introduced themselves or was identified by name or role",
+            "Child's age and current school grade confirmed",
+            "Agency's purpose for the visit explained to the family"
           ]
         },
         {
-          "id": "topic_8616385472f04c8db222fa554f75310d",
-          "label": "Problem-solving and analytical thinking",
+          "id": "topic_cps_002",
+          "label": "Caregiver Identification",
           "criteria": [
-            "a specific problem encountered",
-            "why the problem was challenging",
-            "circumstances of the problem",
-            "candidate's responsibilities",
-            "methods used to investigate possible solutions",
-            "alternatives considered",
-            "why a particular approach was selected",
-            "individual role in implementing the solution",
-            "outcome of the solution",
-            "measurable results such as cost savings, efficiency improvements, quality improvements, or reduced project delays"
+            "Caregiver's full name provided",
+            "Caregiver's relationship to the child confirmed",
+            "Whether caregiver lives in the home established",
+            "Caregiver's typical presence and role during the day noted"
           ]
         },
         {
-          "id": "topic_6c498c44573840d6a1e5bc01a889301f",
-          "label": "Leadership and team management",
+          "id": "topic_cps_003",
+          "label": "Injury Assessment",
           "criteria": [
-            "a time when the candidate led a team or project",
-            "team composition and size",
-            "leadership responsibilities",
-            "how work was organized or tasks were delegated",
-            "team challenges such as conflicting opinions, performance concerns, communication difficulties, or competing priorities",
-            "results achieved by the team",
-            "how the candidate's leadership contributed to those outcomes"
+            "Type and location of the injury documented",
+            "Timeline of when the injury was first noticed established",
+            "Parent or guardian's explanation for the injury obtained",
+            "Medical examination sought and outcome documented",
+            "Injury formally recorded or referred for medical review"
           ]
         },
         {
-          "id": "topic_41475a43e50a4252ac801aa31a709c60",
-          "label": "Communication and interpersonal skills",
+          "id": "topic_cps_004",
+          "label": "Child Safety & Fear Assessment",
           "criteria": [
-            "a situation where complex information was communicated or challenging conversations were managed",
-            "the purpose of the communication",
-            "the intended audience",
-            "the approach selected",
-            "how mutual understanding was ensured",
-            "how questions or concerns were handled",
-            "communication barriers",
-            "resulting decisions, improved relationships, resolved misunderstandings, or successful delivery of information"
+            "Child asked directly about their safety or comfort at home",
+            "Child identified a specific person they feel unsafe with",
+            "Child provided specific examples of threatening or harmful behavior",
+            "Child's disclosure explored with follow-up questions until fully understood",
+            "Child's overall emotional state and wellbeing assessed"
           ]
         },
         {
-          "id": "topic_68577f9cea0f4616a675a682565dee91",
-          "label": "Persuasion, negotiation, and influencing others",
+          "id": "topic_cps_005",
+          "label": "Prior History & Pattern of Abuse",
           "criteria": [
-            "the initial disagreement or resistance",
-            "the individuals or group involved",
-            "the desired outcome",
-            "how the candidate prepared the argument",
-            "evidence presented",
-            "objections addressed",
-            "how the approach was adapted during the interaction",
-            "whether the other party changed position",
-            "the practical outcome of the decision"
+            "Previous incidents of injury or abuse involving the child asked about",
+            "Any prior CPS involvement or reports discussed",
+            "Pattern of the caregiver's behavior over time explored",
+            "Other adults or witnesses to past incidents identified"
           ]
         },
         {
-          "id": "topic_d2e93891ffd742879f6a618daf40637d",
-          "label": "Conflict resolution",
+          "id": "topic_cps_006",
+          "label": "Household & Other Children",
           "criteria": [
-            "a genuine disagreement involving colleagues, supervisors, clients, or other stakeholders",
-            "the cause of the disagreement",
-            "the different perspectives involved",
-            "the candidate's responsibility in resolving the issue",
-            "how the candidate approached the other parties",
-            "how emotions were managed",
-            "how common ground was identified",
-            "whether the disagreement was resolved",
-            "how the experience affected subsequent working relationships"
+            "All adults living in the household identified",
+            "Other children in the home identified by name and age",
+            "Sleeping and care arrangements for the child documented",
+            "Any other individuals who regularly have access to the child noted"
           ]
         },
         {
-          "id": "topic_37ff8a82ba80493baabdc86b16110f17",
-          "label": "Time management and prioritization",
+          "id": "topic_cps_007",
+          "label": "Safety Planning & Next Steps",
           "criteria": [
-            "multiple competing responsibilities",
-            "the nature of the competing tasks",
-            "the deadlines involved",
-            "the business considerations affecting priorities",
-            "methods used to determine which tasks required immediate attention",
-            "how priorities were communicated",
-            "how plans were adjusted when circumstances changed",
-            "the outcome of the prioritization decisions",
-            "improvements made to the approach over time"
-          ]
-        },
-        {
-          "id": "topic_8951aae69ca840279fd4191ef792e053",
-          "label": "Adaptability and managing change",
-          "criteria": [
-            "a significant change to a project, work environment, process, or organizational expectation",
-            "the original situation",
-            "the nature of the change",
-            "the challenges created by the new circumstances",
-            "how plans were adjusted",
-            "how new information was learned",
-            "how others were collaborated with",
-            "how productivity was maintained",
-            "the effectiveness of the response",
-            "lessons applicable to future situations"
-          ]
-        },
-        {
-          "id": "topic_2204e79117ba448cb249f49c74cda5f3",
-          "label": "Accountability and learning from failure",
-          "criteria": [
-            "a meaningful example of a mistake, unsuccessful decision, or project that did not meet expectations",
-            "the candidate's responsibility in the situation",
-            "factors that contributed to the outcome",
-            "how the candidate responded after recognizing the issue",
-            "corrective actions taken",
-            "how affected stakeholders were communicated with",
-            "what the candidate learned",
-            "whether working practices changed to prevent similar issues"
-          ]
-        },
-        {
-          "id": "topic_14a7506abc7c4b01b6a02c077a648522",
-          "label": "Handling ethical dilemmas and professional integrity",
-          "criteria": [
-            "a genuine ethical concern or integrity-related decision",
-            "the circumstances that created the dilemma",
-            "the conflicting responsibilities, values, or expectations involved",
-            "the options available to the candidate",
-            "the decision made",
-            "the reasoning behind that decision",
-            "the actions taken to address the situation",
-            "the consequences of those actions",
-            "lessons learned",
-            "demonstration of ethical responsibility, transparency, and maintaining professional standards under pressure"
-          ]
-        },
-        {
-          "id": "topic_100466721da34312906e823356b18b60",
-          "label": "Initiative and ownership",
-          "criteria": [
-            "an example where the candidate proactively addressed an issue, proposed an improvement, or assumed additional responsibilities",
-            "how the opportunity or problem was recognized",
-            "why the candidate decided to act",
-            "whether approval or support from other stakeholders was needed",
-            "the specific steps taken",
-            "challenges encountered",
-            "how responsibility was maintained for completing the initiative",
-            "the results of the effort",
-            "the value created for the organization, team, or customer"
-          ]
-        },
-        {
-          "id": "topic_4b0c11be609d460a98631e7193db1cc6",
-          "label": "Collaboration and cross-functional teamwork",
-          "criteria": [
-            "a project involving people from different teams, disciplines, departments, or professional backgrounds",
-            "the shared objective",
-            "the roles of the participating teams",
-            "the candidate's specific contribution",
-            "how information was shared",
-            "how dependencies were managed",
-            "how disagreements or coordination challenges were addressed",
-            "whether the collaborative effort achieved its objectives",
-            "how the candidate contributed to the overall result"
-          ]
-        },
-        {
-          "id": "topic_e3ff37038fcc4979a4b1bb56a084d980",
-          "label": "Self-awareness and professional development",
-          "criteria": [
-            "genuine professional strengths",
-            "an area the candidate is currently working to improve",
-            "how strengths have been demonstrated in practical situations",
-            "how strengths contribute to performance",
-            "specific examples illustrating weaknesses and how they have affected work",
-            "steps taken to improve, including training, mentoring, feedback, or changes in working habits",
-            "evidence of progress",
-            "future development goals"
-          ]
-        },
-        {
-          "id": "topic_ff11d73eb1e94f7f98026eb2b0c85e32",
-          "label": "Customer and stakeholder management",
-          "criteria": [
-            "experiences involving customers, clients, management, external partners, or internal stakeholders",
-            "the stakeholder's expectations",
-            "the challenges involved",
-            "methods used to understand requirements",
-            "how progress was communicated",
-            "how disagreements were managed",
-            "how changing expectations were responded to",
-            "how professional relationships were maintained",
-            "the outcome of the engagement",
-            "how actions affected stakeholder satisfaction or project success"
-          ]
-        },
-        {
-          "id": "topic_c7e6344ac7894c57bd3891c5dcd83864",
-          "label": "Decision-making under pressure",
-          "criteria": [
-            "a difficult decision made under challenging circumstances",
-            "the nature of the pressure",
-            "the available information",
-            "the risks involved",
-            "the alternatives considered",
-            "the candidate's personal decision-making responsibility",
-            "how possible consequences were evaluated",
-            "the outcome of the decision",
-            "what the candidate learned about managing pressure and uncertainty"
-          ]
-        },
-        {
-          "id": "topic_58f25a49ff26435bbcc00e0aa52f122d",
-          "label": "Interview documentation and evaluation standards",
-          "criteria": [
-            "which competencies were sufficiently demonstrated",
-            "which competencies require further exploration",
-            "which areas were not addressed",
-            "evidence from the candidate rather than assumptions",
-            "missing information that requires follow-up",
-            "consistent evaluation standards across candidates",
-            "assessment relevance to the requirements of the role"
+            "Immediate safety plan for the child discussed with the parent",
+            "Specific actions the parent agreed to in order to protect the child",
+            "Whether emergency removal or alternative placement was considered",
+            "Follow-up visit or interview date and time agreed upon"
           ]
         }
       ],
       "speakers": [
         {
           "id": "speaker_1",
-          "role": "Participant 1"
+          "role": "CPS Worker"
         },
         {
           "id": "speaker_2",
-          "role": "Participant 2"
+          "role": "Parent / Guardian"
+        },
+        {
+          "id": "speaker_3",
+          "role": "Child"
         }
-      ]
+      ],
+      "crm_content": {
+        "object": "Case",
+        "fields": {
+          "ReportedBy": "School staff",
+          "ChildName": "Jill Carter",
+          "ChildAge": "9",
+          "AllegedPerpetrator": "Dave Mercer",
+          "Relationship": "Mother's boyfriend, lives in home",
+          "AllegedIncident": "Hit child in eye with a thrown cup",
+          "InjuryLocation": "Left eye / black eye",
+          "ReportDate": "This week"
+        },
+        "description": "Child came to school with a black eye. Child told school staff that a man named Dave, who cares for her while mom works, threw a cup at her and hit her eye. Child said Dave gets angry and hits her with objects regularly."
+      }
     },
     "report": {
       "sections": [
         {
-          "label": "Summary",
+          "label": "Record Check",
+          "type": "list",
+          "instruction": "Compare the conversation so far against the CRM record provided. For each field and claim in the record, note whether it was confirmed, contradicted, or not mentioned during the conversation. Clearly state what the record says and what the conversation revealed.",
+          "required": true,
+          "final_only": false,
+          "id": "record_check"
+        },
+        {
+          "label": "Case Narrative Summary",
           "type": "text",
-          "instruction": "Summarize the conversation heard so far.",
+          "instruction": "Write a brief factual narrative of the conversation — who was present, what concern was reported, what key information was established, and how the interview ended. Write it as a case note an investigator would file.",
           "required": true,
-          "id": "summary"
+          "final_only": true,
+          "id": "case_narrative_summary"
         },
         {
-          "label": "Important Facts",
+          "label": "Red Flags & Risk Indicators",
           "type": "list",
-          "instruction": "List important facts explicitly learned during the conversation.",
+          "instruction": "List specific statements, behaviors, or observations from the conversation that indicate potential risk to the child's safety. For each item, quote or closely paraphrase what was said and explain why it is a concern.",
           "required": true,
-          "id": "important_facts"
+          "final_only": false,
+          "id": "red_flags_risk_indicators"
         },
         {
-          "label": "Questions Not Yet Asked",
+          "label": "Conflicting Accounts",
           "type": "list",
-          "instruction": "Compare the important questions and information to cover in the configured Pay attention to focus areas against the conversation so far. List questions that have not yet been asked and whose answers have not otherwise been provided. Treat information volunteered by a participant as covered. Do not invent a required question checklist when none is configured; return an empty list when no uncovered configured questions remain.",
+          "instruction": "Identify specific points in the conversation where participant accounts differ or contradict each other. For each conflict, state what each participant said and what remains unresolved.",
           "required": true,
-          "id": "questions_not_yet_asked"
+          "final_only": false,
+          "id": "conflicting_accounts"
         },
         {
-          "label": "Questions Needing Clarification",
+          "label": "Child's Direct Statements",
           "type": "list",
-          "instruction": "List important questions that were asked but received no answer, a vague answer, or an incomplete answer, including questions the interviewer moved away from before obtaining a clear response. For each item, explain what remains unclear and suggest a specific follow-up question. Consider later answers in the conversation so far and exclude questions that have since been clearly answered. Return an empty list when none need clarification.",
+          "instruction": "List the most significant things the child said during the conversation, quoted or closely paraphrased. Focus on statements about safety, fear, injury, or the people in her life. These are the child's own words and should be preserved accurately.",
           "required": true,
-          "id": "questions_needing_clarification"
+          "final_only": false,
+          "id": "child_s_direct_statements"
         },
         {
-          "label": "Recommended Next Action",
-          "type": "text",
-          "instruction": "Suggest a useful next action grounded in the conversation.",
+          "label": "Investigator's Next Steps",
+          "type": "list",
+          "instruction": "Based on the conversation, list the specific follow-up actions the investigator should take before closing this visit. Be concrete — name who to contact, what to ask, and what to document. Do not repeat what was already covered in the interview.",
           "required": true,
-          "id": "recommended_next_action"
+          "final_only": false,
+          "id": "investigator_s_next_steps"
         }
       ]
-    }
+    },
+    "analysis_interval": 30
   }
 }

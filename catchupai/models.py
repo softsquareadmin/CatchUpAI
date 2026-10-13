@@ -1,6 +1,7 @@
 """JSON-serializable application configuration, independent of UI/runtime settings."""
 
 import copy
+import json
 import math
 import re
 import unicodedata
@@ -20,6 +21,7 @@ class ConversationConfig(TypedDict):
     pay_attention_to: list[str]
     speakers: list[Speaker]
     topics_to_cover: NotRequired[list[dict]]
+    crm_content: NotRequired[dict]
 
 
 class ReportSection(TypedDict):
@@ -66,6 +68,61 @@ def normalize_section_ids(sections):
         section["id"] = make_section_id(section["label"], used)
         used.add(section["id"])
     return normalized
+
+
+MAX_CRM_CHARS = 20_000
+RECORD_CHECK_LABEL = "Record Check"
+RECORD_CHECK_INSTRUCTION = (
+    "Compare the conversation with the CRM record in the configuration. For every "
+    "field in the record, and for each claim in its description, return one line: "
+    "the field or claim name, then Consistent, Differs or Not mentioned, then what "
+    "the record says and, when the conversation addressed it, a short quote of what "
+    "was said. Never omit a field. Use Not mentioned when the topic has not come up; "
+    "that is not a difference. Use Differs only when something said conflicts with "
+    "the record."
+)
+
+
+def _reject_constant(name):
+    raise ValueError(f"CRM content contains the non-JSON value {name}.")
+
+
+def parse_crm_content(text):
+    """Turn pasted CRM text into a JSON object, or raise a message fit for the UI."""
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("Paste the CRM JSON.")
+    if len(text) > MAX_CRM_CHARS:
+        raise ValueError(f"CRM content is too long; the limit is {MAX_CRM_CHARS:,} characters.")
+    try:
+        content = json.loads(text, parse_constant=_reject_constant)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"CRM content is not valid JSON (line {error.lineno}, column {error.colno}): {error.msg}.") from error
+    validate_crm_content(content)
+    return content
+
+
+def validate_crm_content(content):
+    if not isinstance(content, dict) or not content:
+        raise ValueError("CRM content must be a non-empty JSON object.")
+    try:
+        encoded = json.dumps(content, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError) as error:
+        raise ValueError("CRM content must contain only JSON values.") from error
+    if len(encoded) > MAX_CRM_CHARS:
+        raise ValueError(f"CRM content is too long; the limit is {MAX_CRM_CHARS:,} characters.")
+
+
+def record_check_section():
+    return {"label": RECORD_CHECK_LABEL, "type": "list", "instruction": RECORD_CHECK_INSTRUCTION,
+            "required": True, "final_only": False}
+
+
+def ensure_record_check_section(sections):
+    """Append the Record Check section unless one with that label already exists."""
+    sections = list(sections)
+    if any(s.get("label", "").strip().casefold() == RECORD_CHECK_LABEL.casefold() for s in sections):
+        return sections
+    return sections + [record_check_section()]
 
 
 def default_config() -> AnalysisConfig:
@@ -151,7 +208,9 @@ def validate_config(config):
         if type(interval) is not int or interval < 30:
             raise ValueError("Analysis interval must be a whole number of at least 30 seconds.")
     conversation = config.get("conversation")
-    _object(conversation, {"purpose", "pay_attention_to", "speakers", "topics_to_cover"}, "Conversation")
+    _object(conversation, {"purpose", "pay_attention_to", "speakers", "topics_to_cover", "crm_content"}, "Conversation")
+    if "crm_content" in conversation:
+        validate_crm_content(conversation["crm_content"])
     topics = conversation.get("topics_to_cover", [])
     if not isinstance(topics, list):
         raise ValueError("Topics to cover must be a list.")

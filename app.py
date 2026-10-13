@@ -54,6 +54,7 @@ def apply_configuration(config):
     st.session_state._focus_text = "\n".join(config["conversation"]["pay_attention_to"])
     st.session_state.speaker_rows = [editable_row(s["role"]) for s in config["conversation"]["speakers"]]
     st.session_state.topic_rows = [editable_row(t) for t in config["conversation"].get("topics_to_cover", [])]
+    st.session_state.crm_content = copy.deepcopy(config["conversation"].get("crm_content"))
     st.session_state.section_rows = [editable_row(s) for s in config["report"]["sections"]]
 
 

@@ -306,7 +306,7 @@ div[class*="st-key-delete_"] button { color:#df2929; border-color:#ff8585; }
     .st-key-topic_import_content [data-testid="stFileUploaderDropzone"]::before { width:58px; background-position:left center; }
     .st-key-topic_import_content [data-testid="stFileUploaderDropzoneInstructions"] span { white-space:normal; }
 }
-.st-key-topic_actions button { white-space:nowrap; }
+.st-key-topic_actions button, .st-key-crm_actions button { white-space:nowrap; }
 .st-key-configured_topics_scroll { max-height:340px; overflow-y:auto; padding-right:6px; scrollbar-gutter:stable; }
 .st-key-import_topics_scroll { max-height:min(420px, calc(100dvh - 420px)); overflow-y:auto; padding-right:6px; scrollbar-gutter:stable; }
 /* Preserve row heights so capped flex containers overflow instead of clipping topics. */

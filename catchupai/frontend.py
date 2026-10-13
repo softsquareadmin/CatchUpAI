@@ -3,6 +3,7 @@
 import uuid
 import copy
 import hashlib
+import json
 from contextlib import contextmanager
 from html import escape
 from pathlib import Path
@@ -10,7 +11,8 @@ from math import cos, sin, radians
 
 import streamlit as st
 
-from .models import FIELD_TYPES, normalize_section_ids, validate_report_sections
+from .models import (FIELD_TYPES, MAX_CRM_CHARS, RECORD_CHECK_LABEL, ensure_record_check_section,
+                     normalize_section_ids, parse_crm_content, validate_report_sections)
 from .topic_coverage import COVERAGE_CSS, topic_coverage_html
 from .document_topics import DOCUMENT_TYPES, extract_document_topics, merge_imported_topics
 
@@ -235,6 +237,46 @@ def topic_import_dialog():
             st.rerun()
 
 
+def crm_summary(content):
+    fields = content.get("fields")
+    count = len(fields) if isinstance(fields, dict) else len(content)
+    return f"{content.get('object') or 'Record'} \u00b7 {count} field{'s' if count != 1 else ''}"
+
+
+def remove_crm_content():
+    st.session_state.crm_content = None
+    # The Record Check section is meaningless without a record.
+    st.session_state.section_rows = [r for r in st.session_state.section_rows
+                                     if r["value"].get("label", "").strip().casefold() != RECORD_CHECK_LABEL.casefold()]
+    st.session_state.crm_notice = "Removed the CRM content and its Record Check section."
+
+
+@st.dialog("CRM content", width="large")
+def crm_content_dialog():
+    with st.container(key="crm_content_dialog"):
+        st.markdown('<p class="import-description">Paste the JSON for the CRM record. During the conversation CatchUpAI compares what is said with it and reports any differences in a Record Check section.</p>', unsafe_allow_html=True)
+        text = st.text_area("CRM JSON", key="crm_text", height=320, label_visibility="collapsed",
+                            placeholder='{\n  "object": "Case",\n  "fields": {"Name": "..."},\n  "description": "..."\n}')
+        st.caption(f"{len(text):,}/{MAX_CRM_CHARS:,} characters")
+        error_slot = st.empty()
+        cancel, _, save = st.columns([1, 2.25, 1.4], gap="small")
+        if cancel.button("Cancel", key="cancel_crm_content", use_container_width=True):
+            st.rerun()
+        if save.button("Save CRM content", key="save_crm_content", type="primary", use_container_width=True):
+            try:
+                content = parse_crm_content(text)
+            except ValueError as error:
+                inline_error(str(error), error_slot)
+                return
+            rows = st.session_state.section_rows
+            sections = ensure_record_check_section([r["value"] for r in rows])
+            if len(sections) > len(rows):
+                rows.append(editable_row(sections[-1]))
+            st.session_state.crm_content = content
+            st.session_state.crm_notice = "Saved the CRM content. A Record Check section was added to the report."
+            st.rerun()
+
+
 def conversation_editor(config, disabled=False):
     panel_heading("Conversation Configuration", "settings")
     field_heading("Purpose", "Describe what you want to achieve with the conversation analysis. This helps guide the AI in capturing the right information.")
@@ -291,6 +333,23 @@ def conversation_editor(config, disabled=False):
             topic_import_dialog()
     if topic_errors:
         inline_error(" ".join(topic_errors), topics_error)
+    field_heading("CRM content", "Paste a record from your CRM as JSON. CatchUpAI compares the conversation with it and lists differences in a Record Check section of the report.")
+    if "crm_content" not in st.session_state:
+        st.session_state.crm_content = copy.deepcopy(config.get("crm_content"))
+    crm_content = st.session_state.crm_content
+    if st.session_state.get("crm_notice"):
+        st.toast(st.session_state.pop("crm_notice"))
+    with st.container(key="crm_actions"):
+        add_crm, remove_crm, _ = st.columns([1.5, 1, 2.1], gap="small")
+        crm_clicked = add_crm.button("Edit CRM content" if crm_content else "Add CRM content", icon=":material/edit_note:" if crm_content else ":material/add:", key="open_crm_content", disabled=disabled, use_container_width=True)
+        if crm_content:
+            remove_crm.button("Remove", icon=":material/close:", key="remove_crm_content", disabled=disabled, use_container_width=True,
+                              help="Remove the CRM content and its Record Check section.", on_click=remove_crm_content)
+    if crm_content:
+        st.caption(f"CRM content added: {crm_summary(crm_content)}")
+    if crm_clicked:
+        st.session_state.crm_text = json.dumps(crm_content, indent=2, ensure_ascii=False) if crm_content else ""
+        crm_content_dialog()
     field_heading("Participant Roles", "Define participant roles to guide analysis. Speakers aren’t automatically identified.", "participants")
     participants_error = st.empty()
     with st.container(border=False):
@@ -305,12 +364,15 @@ def conversation_editor(config, disabled=False):
         st.rerun()
     if any(not row["value"].strip() for row in st.session_state.speaker_rows):
         inline_error("Enter a role for each participant.", participants_error)
-    return {
+    conversation = {
         "purpose": purpose.strip(),
         "pay_attention_to": [line.strip() for line in focuses.splitlines() if line.strip()],
         "topics_to_cover": topics,
         "speakers": [{"id": f"speaker_{index}", "role": row["value"].strip()} for index, row in enumerate(st.session_state.speaker_rows, 1)],
     }
+    if st.session_state.get("crm_content"):
+        conversation["crm_content"] = copy.deepcopy(st.session_state.crm_content)
+    return conversation
 
 
 def report_editor(disabled=False, tracking_topics=False):
