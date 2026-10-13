@@ -9,7 +9,8 @@ REPORT_REPAIR_MODEL = os.getenv("REPORT_REPAIR_MODEL", "gpt-5.4-mini")
 REPORT_REPAIR_ENABLED = os.getenv("REPORT_REPAIR_ENABLED", "true").lower() not in ("false", "0", "no")
 REPORT_REPAIR_TIMEOUT = 12
 
-MODEL = "gpt-realtime-2.1"
+# MODEL = "gpt-realtime-2.1"
+MODEL = "gpt-realtime-2.1-mini"
 OPENAI_SAMPLE_RATE = 24000
 REALTIME_URL = (
     f"wss://api.openai.com/v1/realtime"
