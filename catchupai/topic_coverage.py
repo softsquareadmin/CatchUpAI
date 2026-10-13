@@ -2,6 +2,7 @@
 from html import escape
 
 COVERAGE_SYMBOLS = {"covered": "&#10003;", "partial": "&#9684;", "unanswered": "!", "pending": "&hellip;"}
+COVERAGE_SCORES = {"covered": 100, "partial": 50, "unanswered": 0, "pending": 0}
 
 
 def coverage_status(result):
@@ -13,16 +14,34 @@ def coverage_status(result):
     return "unanswered"
 
 
+def topic_criteria_score(topic, result):
+    """Average criterion coverage, keeping precision until display rounding."""
+    criteria = topic["criteria"]
+    if not result or not criteria:
+        return 0
+    details = result.get("criteria", {})
+    return sum(COVERAGE_SCORES.get(details.get(str(i), {}).get("status"), 0)
+               for i in range(len(criteria))) / len(criteria)
+
+
+def topic_coverage_score(topics, report):
+    """Average topic percentages for the report and its navigation label."""
+    if not topics:
+        return 0
+    results = report.get("topic_coverage", {})
+    return round(sum(topic_criteria_score(topic, results.get(topic["id"]))
+                     for topic in topics) / len(topics))
+
+
 def topic_coverage_html(topics, report, *, show_heading=True):
     if not topics:
         return ""
     results = report.get("topic_coverage", {})
     labels = {"covered": "Covered", "partial": "Partial", "unanswered": "Unanswered", "pending": "Awaiting analysis"}
     symbols = COVERAGE_SYMBOLS
-    scores = {"covered": 100, "partial": 50, "unanswered": 0, "pending": 0}
     statuses = {t["id"]: coverage_status(results[t["id"]]) if results.get(t["id"]) else "pending" for t in topics}
     counts = {status: sum(s == status for s in statuses.values()) for status in labels}
-    score = round(sum(scores[statuses[t["id"]]] for t in topics) / len(topics))
+    score = topic_coverage_score(topics, report)
     stats = ''.join(
         f'<div class="coverage-stat {status}"><span class="coverage-stat-number">{counts[status]}</span><div><strong>{labels[status]}</strong><span>{description}</span></div></div>'
         for status, description in [("covered", "Topics with<br>comprehensive answers"), ("partial", "Topics with<br>incomplete answers"), ("unanswered", "Topics not yet<br>addressed")]
@@ -51,7 +70,7 @@ def topic_coverage_html(topics, report, *, show_heading=True):
                 parts.append('</div></li>')
             parts.append('</ul>')
             body = ''.join(parts)
-        percent = scores[status]
+        percent = round(topic_criteria_score(topic, result))
         meter = f'<span class="coverage-topic-score">{percent}%</span><span class="coverage-mini-track" aria-hidden="true"><span style="width:{percent}%"></span></span>' if status != 'pending' else ''
         rows.append(f'<details class="coverage-topic {status}"><summary><span class="coverage-chevron" aria-hidden="true"></span><span class="coverage-symbol" aria-hidden="true">{symbols[status]}</span><strong class="coverage-topic-title">{escape(topic["label"])}</strong>{meter}<span class="coverage-label">{labels[status]}</span></summary><div class="coverage-body">{body}</div></details>')
     heading = '<h2>Topic Coverage</h2>' if show_heading else ''

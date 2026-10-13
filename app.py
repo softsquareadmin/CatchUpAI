@@ -1,5 +1,6 @@
 """Run with: python -m streamlit run app.py"""
 from html import escape
+from urllib.parse import quote
 from pathlib import Path
 import copy
 import queue
@@ -16,9 +17,10 @@ from catchupai.browser_audio import BrowserAudioSession, browser_recorder
 from catchupai.models import default_config, normalize_section_ids, validate_config, is_record_check_section, RECORD_CHECK_LABEL
 from catchupai.recording import recording_info
 from catchupai.report_export import build_report_document
+from catchupai.record_check import record_check_navigation_icon
 from catchupai.templates import list_templates, load_template, save_template, delete_template
 from catchupai.frontend import icon, inline_error, dismiss_row_confirmation
-from catchupai.topic_coverage import topic_coverage_html
+from catchupai.topic_coverage import topic_coverage_html, topic_coverage_score
 from catchupai.cost_estimation import render_cost_estimation
 from catchupai.session_notices import notice_text, session_notice
 from catchupai.notifications import notify_once
@@ -483,6 +485,34 @@ def workspace_updates(show_home, show_cost=False):
         st.session_state.report_navigation = "coverage"
     todo, report = st.columns([1, 2.45], gap="small")
     with todo, st.container(key="studio_todo", gap=None):
+        coverage_score = topic_coverage_score(topics, result["report"] if result else {})
+        navigation_styles = [f'.st-key-report_navigation_scroll {{ --topic-coverage-score: {coverage_score}%; --topic-coverage-label: "{coverage_score}%"; }}']
+        for position, key in enumerate(labels, 1):
+            if key not in sections:
+                continue
+            section = sections[key]
+            value = result["report"].get(section["id"]) if result else None
+            option_selector = f'.st-key-report_navigation_scroll [role="radiogroup"] > div:nth-child({position}) [data-testid="stRadioOption"]'
+            selector = option_selector + '::before'
+            if is_record_check_section(section):
+                image = record_check_navigation_icon(value, config["conversation"].get("crm_content"))
+                navigation_styles.append(f'{selector} {{ border-radius:50%; background:url("{image}") center/contain no-repeat; }}')
+            elif section["type"] == "list" and section["label"].strip().casefold() == "red flags & risk indicators":
+                count = len(value) if isinstance(value, list) else 0
+                warning_svg = icon("warning").replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ').replace('currentColor', '#ef1434')
+                warning_image = 'data:image/svg+xml,' + quote(warning_svg, safe='')
+                navigation_styles.extend([
+                    f'{option_selector} {{ gap:5px; padding-left:8px; padding-right:8px; }}',
+                    f'{selector} {{ content:""; width:22px; height:24px; border-radius:0; background:url("{warning_image}") center/22px no-repeat; }}',
+                    f'{option_selector}::after {{ content:"{count}"; order:1; flex-shrink:0; color:#ef1434; font-size:16px; font-weight:700; line-height:1; }}',
+                    f'{option_selector} > div {{ order:2; margin-left:2px; }}',
+                    f'{option_selector}:has(input:checked) {{ color:var(--ink); background:#f7f9fc; border-color:#dfe8f4; border-left-color:#0069ff; }}',
+                ])
+            elif section["label"].strip().casefold().replace("\u2019", "'") == "investigator's next steps":
+                steps_svg = icon("next_steps").replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ').replace('currentColor', '#087bff')
+                steps_image = 'data:image/svg+xml,' + quote(steps_svg, safe='')
+                navigation_styles.append(f'{selector} {{ border-radius:8px; background:#d1e5ff url("{steps_image}") center/28px no-repeat; }}')
+        st.markdown('<style>' + ''.join(navigation_styles) + '</style>', unsafe_allow_html=True)
         with st.container(key="studio_todo_header"):
             panel_heading("To do", "list", strong=True)
         with st.container(height=430, border=False, key="report_navigation_scroll"):

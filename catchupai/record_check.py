@@ -3,6 +3,7 @@
 import json
 import re
 from html import escape
+from urllib.parse import quote
 
 from .models import RECORD_CHECK_INSTRUCTION, is_record_check_section
 from .topic_coverage import COVERAGE_SYMBOLS
@@ -112,6 +113,24 @@ def comparison_items(value, crm_content=None):
                       "source_label": "CRM record" if source else "CRM value in analysis",
                       "reference": embedded.group(1) if source and embedded and embedded.group(1) != source[1] else None})
     return items
+
+
+def record_check_navigation_icon(value, crm_content=None):
+    """Show consistent findings over all findings using the report's statuses."""
+    items = comparison_items(value, crm_content)
+    consistent = sum(item["status"] == "consistent" for item in items)
+    total = len(items)
+    progress = consistent / total * 100 if total else 0
+    label = f"{consistent}/{total}"
+    font_size = min(14, 48 / len(label))
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
+           f'<title>{consistent} consistent out of {total} findings</title>'
+           '<circle cx="24" cy="24" r="21" fill="none" stroke="#dbe5ec" stroke-width="5"/>'
+           f'<circle cx="24" cy="24" r="21" fill="none" stroke="#128362" stroke-width="5" '
+           f'pathLength="100" stroke-dasharray="{progress} 100" transform="rotate(-90 24 24)"/>'
+           f'<text x="24" y="24" text-anchor="middle" dominant-baseline="central" '
+           f'font-family="Arial,Helvetica,sans-serif" font-size="{font_size}" font-weight="700" fill="#15285a">{label}</text></svg>')
+    return "data:image/svg+xml," + quote(svg, safe="")
 
 
 def _evidence_html(text):

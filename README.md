@@ -17,6 +17,12 @@ final report includes all sections. Topic coverage continues to update during
 recording. This setting is saved with the template, and existing templates
 default to updating every section during live checkpoints.
 
+Topic coverage percentages average the coverage of each topic's criteria:
+covered counts as 100%, partial as 50%, and unanswered as 0%. Four covered
+criteria and one unanswered criterion give a topic 80% coverage. Overall
+coverage averages the topic percentages, including topics awaiting analysis
+as 0%. The report, navigation indicator, and downloaded report use these scores.
+
 Realtime function calls can occasionally return incorrectly nested topic
 coverage. CatchUpAI supplies a configuration-specific layout reference and
 relocates unambiguous misplaced topic fields or nested topic IDs before
@@ -36,7 +42,7 @@ shows a short notice and keeps the last valid report; technical diagnostics stay
 in the server logs. A successful report clears earlier notices.
 
 Under **CRM content**, choose **Add CRM content** and paste a record from your
-CRM as a JSON object (up to 20,000 characters). CatchUpAI adds a **CRM Comparison**
+CRM as a JSON object (up to 20,000 characters). CatchUpAI adds a **CRM Verification**
 report section and, at each checkpoint, compares what was said with the record.
 Each comparison has one explicit model-selected status: Consistent, Differs or
 Unconfirmed. Unconfirmed covers partial confirmation, missing mentions and
@@ -44,7 +50,7 @@ insufficient evidence; Consistent means agreement with what was said, not verifi
 truth. New reports contain structured comparisons with a field name, status,
 explanation and evidence. Local validation requires evidence for Consistent and
 Differs. Existing templates use this format on their next analysis.
-CRM Comparison displays summary counts and expandable field cards. Differences
+CRM Verification displays summary counts and expandable field cards. Differences
 appear first and open automatically, with the CRM value beside the conversation
 analysis and highlighted quotes. Other details can be expanded for review.
 Older reports still display correctly: partial, not mentioned and unrecognized
@@ -52,7 +58,7 @@ wording are grouped under Unconfirmed, preserving the original explanation.
 The display does not infer findings from the CRM values. Downloaded reports include the same cards
 with all details expanded for reading and printing.
 Differences are flagged for human review, not as conclusions. The record is saved
-with the template. **Remove** deletes the record and its CRM Comparison section. The
+with the template. **Remove** deletes the record and its CRM Verification section. The
 record is sent to OpenAI with the conversation, so only paste data you may share.
 
 Select a saved template and choose **Load** to fill both editors. After editing,

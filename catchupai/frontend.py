@@ -49,6 +49,8 @@ def icon(name):
         "mic": '<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2m-7 9v3m-4 0h8"/>',
         "file": '<path d="M14 2H5v20h14V7Zm0 0v5h5M8 11h8m-8 4h8m-8 4h5"/>',
         "list": '<path d="m3 6 1 1 2-2m-3 7 1 1 2-2m-3 7 1 1 2-2M10 6h11M10 12h11M10 18h11"/>',
+        "warning": '<path d="M10.3 3.9 2.5 18a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v5"/><circle cx="12" cy="17" r=".6"/>',
+        "next_steps": '<path d="M9 21H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v9"/><path d="m7 9 1.5 1.5L11 8M14 9h4m-11 6 1.5 1.5L11 14m3 6h9m-4-4 4 4-4 4"/>',
         "target": '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
         "users": '<circle cx="9" cy="7" r="3"/><path d="M3 21v-4a6 6 0 0 1 12 0v4Zm13-17a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5v3"/>',
     }
@@ -249,13 +251,13 @@ def remove_crm_content():
     # The CRM comparison section is meaningless without a record.
     st.session_state.section_rows = [r for r in st.session_state.section_rows
                                      if not is_record_check(r["value"])]
-    st.session_state.crm_notice = "Removed the CRM content and its CRM Comparison section."
+    st.session_state.crm_notice = "Removed the CRM content and its CRM Verification section."
 
 
 @st.dialog("CRM content", width="large")
 def crm_content_dialog():
     with st.container(key="crm_content_dialog"):
-        st.markdown('<p class="import-description">Paste the JSON for the CRM record. During the conversation CatchUpAI compares what is said with it and reports any differences in the CRM Comparison section.</p>', unsafe_allow_html=True)
+        st.markdown('<p class="import-description">Paste the JSON for the CRM record. During the conversation CatchUpAI compares what is said with it and reports any differences in the CRM Verification section.</p>', unsafe_allow_html=True)
         text = st.text_area("CRM JSON", key="crm_text", height=320, label_visibility="collapsed",
                             placeholder='{\n  "object": "Case",\n  "fields": {"Name": "..."},\n  "description": "..."\n}')
         st.caption(f"{len(text):,}/{MAX_CRM_CHARS:,} characters")
@@ -274,7 +276,7 @@ def crm_content_dialog():
             if len(sections) > len(rows):
                 rows.append(editable_row(sections[-1]))
             st.session_state.crm_content = content
-            st.session_state.crm_notice = "Saved the CRM content. A CRM Comparison section was added to the report."
+            st.session_state.crm_notice = "Saved the CRM content. A CRM Verification section was added to the report."
             st.rerun()
 
 
@@ -334,7 +336,7 @@ def conversation_editor(config, disabled=False):
             topic_import_dialog()
     if topic_errors:
         inline_error(" ".join(topic_errors), topics_error)
-    field_heading("CRM content", "Paste a record from your CRM as JSON. CatchUpAI compares the conversation with it and lists differences in the CRM Comparison section of the report.")
+    field_heading("CRM content", "Paste a record from your CRM as JSON. CatchUpAI compares the conversation with it and lists differences in the CRM Verification section of the report.")
     if "crm_content" not in st.session_state:
         st.session_state.crm_content = copy.deepcopy(config.get("crm_content"))
     crm_content = st.session_state.crm_content
@@ -345,7 +347,7 @@ def conversation_editor(config, disabled=False):
         crm_clicked = add_crm.button("Edit CRM content" if crm_content else "Add CRM content", icon=":material/edit_note:" if crm_content else ":material/add:", key="open_crm_content", disabled=disabled, use_container_width=True)
         if crm_content:
             remove_crm.button("Remove", icon=":material/close:", key="remove_crm_content", disabled=disabled, use_container_width=True,
-                              help="Remove the CRM content and its CRM Comparison section.", on_click=remove_crm_content)
+                              help="Remove the CRM content and its CRM Verification section.", on_click=remove_crm_content)
     if crm_content:
         st.caption(f"CRM content added: {crm_summary(crm_content)}")
     if crm_clicked:

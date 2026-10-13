@@ -95,6 +95,9 @@
 .st-key-report_navigation_scroll [data-testid="stRadioOption"]:hover { background:#eef4fd; border-color:#c7daf5; border-left-color:transparent; }
 .st-key-report_navigation_scroll [data-testid="stRadioOption"]:has(input:checked) { background:#e5f0ff; border-color:#e5f0ff; border-left-color:#0069ff; color:#005bff; }
 .st-key-report_navigation_scroll [data-testid="stRadioOption"]:has(input:checked)::before { background-color:#d1e5ff; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230069ff' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='4' cy='6' r='1' fill='%230069ff'/%3E%3Ccircle cx='4' cy='12' r='1' fill='%230069ff'/%3E%3Ccircle cx='4' cy='18' r='1' fill='%230069ff'/%3E%3Cpath d='M9 6h11M9 12h11M9 18h11'/%3E%3C/svg%3E"); }
+/* Topic Coverage is the first navigation item and carries its live score. */
+.st-key-report_navigation_scroll [role="radiogroup"] > div:first-child [data-testid="stRadioOption"]::before { content:var(--topic-coverage-label,"0%"); display:grid; place-items:center; border-radius:50%; color:#15285a; font-size:11px; font-weight:700; line-height:1; background:radial-gradient(closest-side,var(--topic-coverage-center,#f7f9fc) 74%,transparent 77%),conic-gradient(from 270deg,#087bff var(--topic-coverage-score,0%),#fff 0); }
+.st-key-report_navigation_scroll [role="radiogroup"] > div:first-child [data-testid="stRadioOption"]:has(input:checked)::before { --topic-coverage-center:#e5f0ff; }
 /* Mouse selection keeps the card design; keyboard navigation retains a focus cue. */
 .st-key-report_navigation_scroll [data-testid="stRadioOption"]:focus-within { outline:none; box-shadow:none; }
 .st-key-report_navigation_scroll [data-testid="stRadioOption"]:has(input:focus-visible) { outline:2px solid #99c5ff; outline-offset:-2px; }

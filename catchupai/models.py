@@ -75,11 +75,11 @@ def normalize_section_ids(sections):
 
 
 MAX_CRM_CHARS = 20_000
-RECORD_CHECK_LABEL = "CRM Comparison"
+RECORD_CHECK_LABEL = "CRM Verification"
 
 
 def is_record_check_section(section):
-    return (section.get("label", "").strip().casefold() in ("record check", RECORD_CHECK_LABEL.casefold())
+    return (section.get("label", "").strip().casefold() in ("record check", "crm comparison", RECORD_CHECK_LABEL.casefold())
             or section.get("id") == "record_check") and section.get("type") in ("list", "text")
 
 
@@ -134,7 +134,7 @@ def record_check_section():
 
 
 def ensure_record_check_section(sections):
-    """Rename legacy sections and append a CRM comparison only if none exists."""
+    """Rename legacy sections and append CRM verification only if none exists."""
     sections = copy.deepcopy(list(sections))
     if any(is_record_check_section(s) for s in sections):
         for section in sections:
