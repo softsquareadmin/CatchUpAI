@@ -17,6 +17,24 @@ final report includes all sections. Topic coverage continues to update during
 recording. This setting is saved with the template, and existing templates
 default to updating every section during live checkpoints.
 
+Realtime function calls can occasionally return incorrectly nested topic
+coverage. CatchUpAI supplies a configuration-specific layout reference and
+relocates unambiguous misplaced topic fields or nested topic IDs before
+validation. It preserves the model's values and does not invent missing topics,
+criteria or evidence. If local recovery cannot fix a structural error, a
+background `gpt-5.4-mini` Responses call proposes field moves using strict
+Structured Outputs. The app applies the moves, rejects overwrites or changes to
+topic/criterion assignments, and verifies the original values before accepting
+the report. Missing or truncated content needs a new Realtime analysis instead.
+Each analysis allows one mini repair call and one Realtime validation retry;
+only validated reports are displayed. A repair call times out after 12 seconds.
+
+The fallback uses the existing `OPENAI_API_KEY`. Set `REPORT_REPAIR_MODEL` in
+`.env` to change the repair model, or `REPORT_REPAIR_ENABLED=false` to disable
+the mini fallback. Recording continues during repair. If recovery fails, the UI
+shows a short notice and keeps the last valid report; technical diagnostics stay
+in the server logs. A successful report clears earlier notices.
+
 Under **CRM content**, choose **Add CRM content** and paste a record from your
 CRM as a JSON object (up to 20,000 characters). CatchUpAI adds a **Record Check**
 report section and, at each checkpoint, compares what was said with the record.
@@ -57,6 +75,44 @@ Structured Outputs. Documents are sent in full rather than clipped locally.
 
 CatchUp listens to conversations and helps you understand what you may have missed.
 
+## Cost estimation
+
+Open **Cost Estimation** in the left sidebar to see costs for the current audio
+analysis. The page refreshes during recording and retains the final estimate
+after analysis ends. You can switch between Conversation Studio and Cost
+Estimation while recording; the recorder stays available on both pages.
+
+The dashboard shows the session total, number of analyses and savings from
+caching. Its breakdown separates regular and cached audio, text instructions,
+cached text, report generation and reasoning, with token counts and USD rates.
+Reasoning is part of output usage and is counted once. When the API does not
+report its token count separately, its charge stays in report generation and
+the reasoning row says it is included.
+
+Live recordings show each analysis interval, the final-report charge and a
+running total. Select an interval to inspect its breakdown. Uploaded recordings
+show one combined cost. Validation retries count toward the same analysis.
+Interval numbers follow fixed audio-time checkpoints: with a 60-second setting,
+Interval 4 is the 4:00 checkpoint. A request recovered at 4:24 still belongs to
+Interval 4, and the next checkpoint remains 5:00. Reconnection attempts do not
+advance the interval number; their received usage is grouped into that interval.
+The table and CSV include the interval's time range and actual request position.
+Existing session records are displayed using audio time even if they originally
+stored request counters. If an outage or a slow response spans a whole checkpoint,
+that time checkpoint can still be missed; audio is retained for recovery.
+Mini repair calls, including paid responses whose repairs are rejected, also
+count toward that analysis. Interval rows identify repair calls and the CSV
+includes their count. Their input, output and reasoning tokens use the repair
+model's rates; estimates show mixed rates when multiple models are involved.
+**Download costs** exports the analysis costs as CSV. Missing usage or unknown
+prices mark the estimate as partial; known charges remain visible. Starting a
+new analysis or resetting the workspace clears the displayed session costs.
+
+Cost and analysis warnings appear as notifications at the top right. Use the
+close button to dismiss them; the same notice stays dismissed during live
+refreshes and tab changes. A new recording can show its own warnings. The cost
+dashboard retains its partial-estimate label when some charges are unknown.
+
 API usage is printed in the server terminal and appended to `logs/api_usage.jsonl`
 (excluded from Git). Each response records its ID, logical session ID, model,
 raw token usage, cached-token details, calculated USD cost, and the price list
@@ -64,6 +120,16 @@ used. Live, uploaded-recording, and document-extraction requests are covered.
 Failed responses and validation retries count too; duplicate response IDs do not.
 Browser reconnects retain the same session total. No audio, prompts, report
 contents, or document contents are written to this usage log.
+
+Realtime capture uses TCP keepalive and WebSocket pings every 15 seconds, with
+45 seconds allowed for a matching pong. Socket reading and report processing
+run separately so report validation cannot delay ping/pong handling. Request
+rejections and local processing errors do not automatically close the socket.
+Actual connection failures trigger the existing audio replay and backoff.
+`realtime_connection` entries in `logs/api_usage.jsonl` record connection IDs,
+close codes/reasons, error types, and pending checkpoint metadata. These entries
+do not add charges. Missing usage is flagged when a response was still pending;
+a disconnect between completed reports does not invent unknown charges.
 
 `observed_cost_usd` is the sum of responses that could be priced. Missing usage
 or unknown model prices produce `cost_usd: null` and an incomplete total; a lost

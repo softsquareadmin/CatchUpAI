@@ -69,6 +69,24 @@ def build_analysis_instructions(config, *, is_final=True):
     ]
     configuration_json = json.dumps(config, ensure_ascii=True, indent=2)
     has_crm = "crm_content" in config["conversation"]
+    topics = config["conversation"].get("topics_to_cover", [])
+    layout = ""
+    if topics:
+        example = {"topic_coverage": {topic["id"]: {
+            "criteria": {str(i): {"status": "unanswered", "evidence": "", "missing": "Specific missing information"}
+                         for i in range(len(topic["criteria"]))},
+            "asked": False, "summary": "", "suggested_question": "A targeted follow-up question",
+        } for topic in topics}}
+        layout = (
+            "\nTOPIC COVERAGE LAYOUT REFERENCE\n"
+            "The JSON below demonstrates the exact topic keys and nesting for this configuration.\n"
+            "It shows only the topic_coverage part; also return the configured report fields.\n"
+            "Sample values are illustrative, not findings. Replace them using the conversation.\n"
+            "Close each criteria object before writing asked, summary and suggested_question.\n"
+            "Close each topic object before writing the next topic ID. Never copy placeholder text.\n"
+            + json.dumps(example, ensure_ascii=True)
+            + "\nEND TOPIC COVERAGE LAYOUT REFERENCE\n"
+        )
     return (
         CORE_SYSTEM_INSTRUCTION
         + (("\n" + CRM_RULES) if has_crm else "")
@@ -81,4 +99,5 @@ def build_analysis_instructions(config, *, is_final=True):
         + "available in the conversation so far. Follow the backend rules above.\n"
         + ("This is the final report. Reevaluate every included section using all available conversation evidence.\n"
            if is_final else "This is an intermediate report. Return only the included report fields and configured topic coverage.\n")
+        + layout
     )

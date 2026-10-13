@@ -5,6 +5,9 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TOPIC_EXTRACTION_MODEL = os.getenv("TOPIC_EXTRACTION_MODEL", "gpt-5.4-mini")
+REPORT_REPAIR_MODEL = os.getenv("REPORT_REPAIR_MODEL", "gpt-5.4-mini")
+REPORT_REPAIR_ENABLED = os.getenv("REPORT_REPAIR_ENABLED", "true").lower() not in ("false", "0", "no")
+REPORT_REPAIR_TIMEOUT = 12
 
 MODEL = "gpt-realtime-2.1"
 OPENAI_SAMPLE_RATE = 24000
@@ -14,4 +17,6 @@ REALTIME_URL = (
 )
 CHUNK_MS = 200
 ANALYSIS_INTERVAL = 60
+REALTIME_PING_INTERVAL = 15
+REALTIME_PONG_TIMEOUT = 45
 

@@ -1,5 +1,6 @@
 """Generate only supported schemas and validate every model report locally."""
 
+import copy
 import json
 
 from jsonschema import Draft202012Validator
@@ -46,12 +47,15 @@ def build_report_schema(report_sections, topics=(), *, is_final=True):
             }, "required": ["status", "evidence", "missing"], "additionalProperties": False,
                 "description": criterion} for i, criterion in enumerate(topic["criteria"])}
             topic_fields[topic["id"]] = {"type": "object", "properties": {
-                "criteria": {"type": "object", "properties": criteria, "required": list(criteria), "additionalProperties": False},
+                "criteria": {"type": "object", "properties": criteria, "required": list(criteria), "additionalProperties": False,
+                             "description": "Only numbered criterion entries belong here. asked, summary and suggested_question are siblings of criteria."},
                 "asked": {"type": "boolean", "description": "Was a question seeking this information asked?"},
                 "summary": {"type": "string", "description": "Summary of information actually obtained; empty if none."},
                 "suggested_question": {"type": "string", "description": "One targeted question addressing missing criteria; empty if fully covered."},
-            }, "required": ["criteria", "asked", "summary", "suggested_question"], "additionalProperties": False}
-        properties["topic_coverage"] = {"type": "object", "properties": topic_fields, "required": list(topic_fields), "additionalProperties": False}
+            }, "required": ["criteria", "asked", "summary", "suggested_question"], "additionalProperties": False,
+                "description": f"Coverage of {topic['label']}. Other topic IDs belong directly under topic_coverage, never inside this topic."}
+        properties["topic_coverage"] = {"type": "object", "properties": topic_fields, "required": list(topic_fields), "additionalProperties": False,
+                                      "description": "Every configured topic ID is a direct sibling key in this object."}
         required.append("topic_coverage")
     schema = {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
     Draft202012Validator.check_schema(schema)
@@ -65,6 +69,56 @@ def build_analysis_tool(report_config, topics=(), *, is_final=True):
         "description": "Return the current structured conversation analysis using the configured report fields.",
         "parameters": build_report_schema(report_config["sections"], topics, is_final=is_final),
     }
+
+
+def normalize_report_structure(report, schema):
+    """Relocate unambiguous coverage fields without inventing or changing data.
+
+    Realtime tool arguments are not schema-constrained. Recover the known
+    misplaced-sibling errors before full schema and evidence validation.
+    Duplicate topics or conflicting metadata remain invalid for the retry.
+    """
+    normalized = copy.deepcopy(report)
+    if not isinstance(normalized, dict):
+        return normalized
+    coverage = normalized.get("topic_coverage")
+    coverage_schema = schema.get("properties", {}).get("topic_coverage", {})
+    if not isinstance(coverage, dict) or coverage_schema.get("type") != "object":
+        return normalized
+    topic_ids = set(coverage_schema.get("properties", {}))
+    metadata_fields = {"asked", "summary", "suggested_question"}
+    collected = {}
+
+    def collect(topic_id, topic):
+        if topic_id in collected:
+            raise ValueError("Multiple values for the same topic cannot be safely relocated.")
+        collected[topic_id] = topic
+        if not isinstance(topic, dict):
+            return
+        criteria = topic.get("criteria")
+        if isinstance(criteria, dict):
+            for key in metadata_fields:
+                if key not in criteria:
+                    continue
+                if key in topic and topic[key] != criteria[key]:
+                    raise ValueError("Conflicting topic metadata cannot be safely relocated.")
+                topic[key] = criteria.pop(key)
+        for container in (topic, criteria):
+            if not isinstance(container, dict):
+                continue
+            for key in list(container):
+                # Reserved field names are not eligible for topic relocation.
+                if key in topic_ids and key not in metadata_fields | {"criteria"}:
+                    collect(key, container.pop(key))
+
+    try:
+        for topic_id in list(coverage):
+            if topic_id in topic_ids:
+                collect(topic_id, coverage[topic_id])
+    except ValueError:
+        return copy.deepcopy(report)
+    coverage.update(collected)
+    return normalized
 
 
 def validate_report(report, schema):

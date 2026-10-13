@@ -14,6 +14,8 @@ from scipy.signal import resample_poly
 from .config import (OPENAI_SAMPLE_RATE, CHUNK_MS, ANALYSIS_INTERVAL,)
 from .realtime_client import RealtimeConversationAnalyzer
 from .models import default_config, validate_config
+from .usage import UsageTracker
+from .analysis_timing import audio_checkpoint
 
 audio_queue = queue.Queue()
 microphone_lock = threading.Lock()
@@ -27,7 +29,7 @@ def microphone_callback(indata, frames, time_info, status,):
     
     audio_queue.put(indata[:, 0].copy())
 
-def main(config=None, stop_event=None, on_report=None, on_error=None, on_status=None, on_analysis=None):
+def main(config=None, stop_event=None, on_report=None, on_error=None, on_status=None, on_analysis=None, usage_tracker=None):
     config = copy.deepcopy(config if config is not None else default_config())
     validate_config(config)
     stop_event = stop_event if stop_event is not None else threading.Event()
@@ -41,12 +43,12 @@ def main(config=None, stop_event=None, on_report=None, on_error=None, on_status=
                 audio_queue.get_nowait()
             except queue.Empty:
                 break
-        return _run_audio_session(config, stop_event, on_report, on_error, status, on_analysis)
+        return _run_audio_session(config, stop_event, on_report, on_error, status, on_analysis, usage_tracker)
     finally:
         microphone_lock.release()
 
 
-def _run_audio_session(config, stop_event, on_report, on_error, status, on_analysis):
+def _run_audio_session(config, stop_event, on_report, on_error, status, on_analysis, usage_tracker=None):
     analysis_interval = config.get("analysis_interval", ANALYSIS_INTERVAL)
     if sd is None:
         raise RuntimeError("Server microphone capture requires sounddevice and PortAudio. Use the browser recorder in app.py instead.")
@@ -63,7 +65,7 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
     print("Chunk size:", CHUNK_MS, "ms",)
     print("Analysis interval:", analysis_interval,"seconds",)
 
-    copilot = RealtimeConversationAnalyzer(config, on_report=on_report, on_error=on_error, on_analysis=on_analysis)
+    copilot = RealtimeConversationAnalyzer(config, on_report=on_report, on_error=on_error, on_analysis=on_analysis, usage_tracker=usage_tracker)
     audio_since_commit = False
     audio_sent = False
     session_failed = False
@@ -110,14 +112,15 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
                 now = time.monotonic()
                 elapsed = (now - start_time)
 
-                if (now - last_analysis_time >= analysis_interval):
+                if int(elapsed // analysis_interval) > int((last_analysis_time - start_time) // analysis_interval):
                     print("\n\n" "************************************")
                     print(f"CHECKPOINT: " f"{elapsed:.0f} seconds")
                     print("************************************")
 
                     if audio_since_commit:
                         if copilot.has_intermediate_report:
-                            copilot.request_analysis(timestamp=elapsed)
+                            copilot.request_analysis(timestamp=elapsed,
+                                                     checkpoint=audio_checkpoint(elapsed, analysis_interval))
                         else:
                             copilot.commit_audio()
                         audio_since_commit = False
@@ -148,16 +151,18 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
         if audio_sent and not session_failed and not copilot.connection_failed.is_set():
             try:
                 if copilot.pending_responses:
-                    copilot.wait_for_responses(timeout=30)
+                    copilot.wait_for_responses(timeout=60)
                     if copilot.pending_responses:
                         raise TimeoutError("The previous report did not complete before final generation.")
                 print("\nRequesting final analysis...")
-                copilot.request_analysis(timestamp=time.monotonic() - start_time, commit=audio_since_commit, is_final=True)
+                elapsed = time.monotonic() - start_time
+                copilot.request_analysis(timestamp=elapsed, commit=audio_since_commit, is_final=True,
+                                         checkpoint=audio_checkpoint(elapsed, analysis_interval, is_final=True))
             except Exception as error:
                 if on_error and not copilot.connection_failed.is_set():
                     on_error(f"Final analysis request failed: {error}")
         if copilot.pending_responses and not copilot.connection_failed.is_set():
-            copilot.wait_for_responses(timeout=30)
+            copilot.wait_for_responses(timeout=60)
             if copilot.pending_responses and not copilot.connection_failed.is_set() and on_error:
                 on_error("Timed out waiting for the final report.")
         copilot.print_results()
@@ -177,6 +182,8 @@ class LiveSession:
         validate_config(config)
         self.config = copy.deepcopy(config)
         self.recording_bytes = recording_bytes
+        self.is_upload = recording_bytes is not None
+        self.usage_tracker = UsageTracker()
         self.events = queue.Queue()
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self._run, daemon=True)
@@ -191,6 +198,10 @@ class LiveSession:
     def stop(self):
         self.stop_event.set()
 
+    def _report(self, result):
+        if not (self.is_upload and self.stop_event.is_set()):
+            self.events.put(("report", result))
+
     def _run(self):
         try:
             runner = main
@@ -202,10 +213,11 @@ class LiveSession:
             runner(
                 self.config,
                 stop_event=self.stop_event,
-                on_report=lambda result: self.events.put(("report", result)),
+                on_report=self._report,
                 on_error=lambda message: self.events.put(("error", message)),
                 on_status=lambda message: self.events.put(("status", message)),
                 on_analysis=lambda loading: self.events.put(("analysis", loading)),
+                usage_tracker=self.usage_tracker,
                 **extra,
             )
         except Exception as error:

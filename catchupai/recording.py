@@ -20,10 +20,10 @@ def recording_info(recording_bytes):
     return info
 
 
-def analyze_recording(config, recording_bytes, stop_event, on_report=None, on_error=None, on_status=None, on_analysis=None):
+def analyze_recording(config, recording_bytes, stop_event, on_report=None, on_error=None, on_status=None, on_analysis=None, usage_tracker=None):
     recording_info(recording_bytes)
     status = on_status or (lambda message: None)
-    client = RealtimeConversationAnalyzer(config, on_report, on_error, on_analysis, require_full_context=True)
+    client = RealtimeConversationAnalyzer(config, on_report, on_error, on_analysis, require_full_context=True, usage_tracker=usage_tracker)
     elapsed = 0.0
     try:
         status("Connecting")

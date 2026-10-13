@@ -7,6 +7,7 @@ import queue
 import tempfile
 import threading
 import time
+import logging
 
 from streamlit.components.v1 import declare_component
 
@@ -14,6 +15,9 @@ from .config import ANALYSIS_INTERVAL, OPENAI_SAMPLE_RATE
 from .models import validate_config
 from .realtime_client import RealtimeConversationAnalyzer
 from .usage import UsageTracker
+from .analysis_timing import audio_checkpoint
+
+_LOGGER = logging.getLogger(__name__)
 
 
 browser_recorder = declare_component("browser_recorder", path=str(Path(__file__).resolve().parent.parent / "assets" / "browser_recorder"))
@@ -40,6 +44,8 @@ class BrowserAudioSession:
         self.highest_sequence = -1
         self.boundaries = []
         self.checkpoint = 0
+        self.completed_checkpoint = 0
+        self.request_number = 0
         self.client_factory = client_factory
         self.thread = threading.Thread(target=self._run, daemon=True)
 
@@ -101,6 +107,8 @@ class BrowserAudioSession:
 
     def _report(self, report):
         if not self.cancel_event.is_set():
+            with self.lock:
+                self.completed_checkpoint = max(self.completed_checkpoint, report["checkpoint"])
             self.events.put(("report", report))
 
     def _new_client(self):
@@ -121,7 +129,6 @@ class BrowserAudioSession:
     def _run(self):
         client = None
         sent = committed = 0
-        analyzed_at = 0.0
         attempts = 0
         final_deadline = None
         recovered = False
@@ -136,7 +143,7 @@ class BrowserAudioSession:
                     if client is None:
                         self.events.put(("status", "Connecting" if attempts == 0 else "Reconnecting — recording is saved in your browser"))
                         client = self._new_client()
-                        client.analysis_number = self.checkpoint
+                        client.analysis_number = self.request_number
                         client.connect()
                         sent = committed = 0
                         self.events.put(("status", "Restoring conversation" if attempts else "Listening"))
@@ -163,24 +170,32 @@ class BrowserAudioSession:
                     caught_up = sent == count
                     ready = not client.pending_responses
                     final = self.input_finished.is_set() and caught_up
-                    due = elapsed - analyzed_at >= self.analysis_interval
-                    if ready and caught_up and count and (due or recovered or final):
+                    interval_checkpoint = audio_checkpoint(elapsed, self.analysis_interval)
+                    due = interval_checkpoint > self.checkpoint
+                    with self.lock:
+                        retry_due = recovered and self.checkpoint > self.completed_checkpoint and interval_checkpoint > 0
+                    if recovered and caught_up and not retry_due:
+                        recovered = False
+                        self.events.put(("status", "Listening"))
+                    if ready and caught_up and count and (due or retry_due or final):
+                        checkpoint = audio_checkpoint(elapsed, self.analysis_interval, is_final=final)
                         if final or client.has_intermediate_report:
-                            self.checkpoint += 1
-                            client.analysis_number = self.checkpoint - 1
-                            client.request_analysis(timestamp=elapsed, commit=sent > committed, is_final=final)
+                            self.checkpoint = checkpoint
+                            client.request_analysis(timestamp=elapsed, commit=sent > committed, is_final=final,
+                                                    checkpoint=checkpoint)
+                            self.request_number = client.analysis_number
                         elif sent > committed:
                             # Keep audio items bounded even when no live report
                             # fields are configured, and retain replay boundaries.
                             client.commit_audio()
+                            self.checkpoint = checkpoint
                         if sent > committed:
                             self.boundaries.append(sent)
                             committed = sent
-                        analyzed_at = elapsed
                         recovered = False
                         self.events.put(("status", "Finishing report" if final else "Listening"))
                         if final:
-                            client.wait_for_responses(timeout=30, stop_event=self.cancel_event)
+                            client.wait_for_responses(timeout=60, stop_event=self.cancel_event)
                             if self.cancel_event.is_set():
                                 break
                             if client.connection_failed.is_set():
@@ -196,9 +211,10 @@ class BrowserAudioSession:
                     if self.cancel_event.is_set():
                         break
                     if client is not None:
-                        self.checkpoint = max(self.checkpoint, client.analysis_number)
+                        self.request_number = max(self.request_number, client.analysis_number)
                         client.close()
                         client = None
+                    _LOGGER.warning("Realtime recovery attempt %s: %s", attempts + 1, error)
                     attempts += 1
                     self.events.put(("analysis", False))
                     self.events.put(("status", f"Reconnecting (attempt {attempts}) — recording continues"))

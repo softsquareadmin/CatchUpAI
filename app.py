@@ -5,6 +5,7 @@ import copy
 import queue
 import time
 import uuid
+import logging
 
 import streamlit as st
 
@@ -18,6 +19,11 @@ from catchupai.report_export import build_report_document
 from catchupai.templates import list_templates, load_template, save_template, delete_template
 from catchupai.frontend import icon, inline_error, dismiss_row_confirmation
 from catchupai.topic_coverage import topic_coverage_html
+from catchupai.cost_estimation import render_cost_estimation
+from catchupai.session_notices import notice_text, session_notice
+from catchupai.notifications import notify_once
+
+_LOGGER = logging.getLogger(__name__)
 
 st.set_page_config(page_title="CatchUpAI", page_icon=str(Path(__file__).resolve().parent / "assets" / "icon.png"), layout="wide", initial_sidebar_state="expanded")
 workspace_styles()
@@ -39,7 +45,7 @@ for key, value in {"live": None, "latest": None, "errors": [], "runtime_status":
     if key not in st.session_state:
         st.session_state[key] = value
 
-if st.session_state.get("page") not in ("Conversation Studio", "Configurations"):
+if st.session_state.get("page") not in ("Conversation Studio", "Configurations", "Cost Estimation"):
     st.session_state.page = "Conversation Studio"
 
 
@@ -187,8 +193,8 @@ def template_controls(disabled=False):
 
 
 with st.sidebar:
-    for destination, symbol in [("Conversation Studio", "graphic_eq"), ("Configurations", "settings")]:
-        st.button(destination, icon=f":material/{symbol}:", key=f"nav_{symbol}", type="primary" if st.session_state.page == destination else "secondary", use_container_width=True, disabled=st.session_state.live is not None and st.session_state.live.running, on_click=navigate, args=(destination,))
+    for destination, symbol in [("Conversation Studio", "graphic_eq"), ("Configurations", "settings"), ("Cost Estimation", "payments")]:
+        st.button(destination, icon=f":material/{symbol}:", key=f"nav_{symbol}", type="primary" if st.session_state.page == destination else "secondary", use_container_width=True, disabled=destination == "Configurations" and st.session_state.live is not None and st.session_state.live.running, on_click=navigate, args=(destination,))
 page = st.session_state.page
 
 live = st.session_state.live
@@ -291,7 +297,7 @@ def upload_recording(config, disabled=False):
     try:
         info = recording_info(recording_bytes)
     except ValueError as error:
-        st.error(str(error))
+        notify_once(str(error), key=("invalid_upload", upload_key, str(error)))
         st.button("Remove uploaded audio", icon=":material/close:", disabled=disabled, on_click=clear_uploaded_recording)
         return
     minutes, seconds = divmod(int(info.duration), 60)
@@ -309,7 +315,8 @@ def upload_recording(config, disabled=False):
         return
     if st.button("Analyze recording", icon=":material/graphic_eq:", type="primary", disabled=disabled, width="stretch"):
         if st.session_state.live is not None and st.session_state.live.running:
-            st.error("Stop the current session before analyzing another recording.")
+            notify_once("Stop the current session before analyzing another recording.",
+                        key="session_busy", scope=st.session_state.live.usage_tracker.session_id)
             return
         start_session(config, recording_bytes, uploaded.name)
         st.rerun()
@@ -326,21 +333,46 @@ def drain_session_events():
             break
         if kind == "report" and not (isinstance(session, BrowserAudioSession) and session.cancel_event.is_set()):
             previous = st.session_state.pending_report or st.session_state.latest
-            if previous is None or value["checkpoint"] > previous["checkpoint"]:
+            if previous is None or (value["timestamp"], value.get("is_final", False)) > (previous["timestamp"], previous.get("is_final", False)):
                 st.session_state.pending_report = value
                 st.session_state.reveal_at = time.monotonic() + 0.7
+                st.session_state.errors = [notice for notice in map(session_notice, st.session_state.errors)
+                                           if notice["checkpoint"] is not None and notice["checkpoint"] > value["checkpoint"]]
         elif kind == "analysis":
             st.session_state.analysis_loading = value
         elif kind == "error":
-            st.session_state.errors.append(value)
+            if not isinstance(value, dict):
+                _LOGGER.warning("Audio analysis failed: %s", value)
+            notice = session_notice(value)
+            if notice not in st.session_state.errors:
+                st.session_state.errors.append(notice)
+            st.session_state.errors = st.session_state.errors[-5:]
         elif kind == "status":
             st.session_state.runtime_status = value
+            if value == "Listening":
+                st.session_state.errors = [notice for notice in map(session_notice, st.session_state.errors)
+                                           if notice["kind"] != "connection"]
         elif kind == "finished":
             st.session_state.runtime_status = "Stopped"
             st.session_state.analysis_loading = False
     if st.session_state.pending_report is not None and time.monotonic() >= st.session_state.reveal_at:
         st.session_state.latest = st.session_state.pending_report
         st.session_state.pending_report = None
+
+
+def render_session_notice():
+    if not st.session_state.errors:
+        return
+    session = st.session_state.live
+    recording = (isinstance(session, BrowserAudioSession) and session.running
+                 and not session.input_finished.is_set() and not session.cancel_event.is_set())
+    for error in st.session_state.errors:
+        notice = session_notice(error)
+        notify_once(notice_text(notice, recording=recording,
+                               has_report=st.session_state.latest is not None or st.session_state.pending_report is not None,
+                               uploaded=st.session_state.source_name is not None),
+                    key=("analysis", notice["kind"], notice["checkpoint"], notice["is_final"]),
+                    scope=session.usage_tracker.session_id if session else "workspace")
 
 
 @st.fragment
@@ -404,14 +436,16 @@ def recorder_controls():
                         try:
                             session.ingest(message)
                         except (ValueError, KeyError) as audio_error:
-                            st.error(str(audio_error))
+                            _LOGGER.warning("Audio recording input failed: %s", audio_error)
+                            notify_once("Some recorded audio couldn't be processed. Try recording again if analysis doesn't resume.",
+                                        key="audio_input", scope=message["session_id"])
                     if message.get("error"):
-                        st.error(message["error"])
+                        notify_once(message["error"], key=("recorder", message["error"]), scope=message["session_id"])
             if mode == "Upload Audio":
                 with st.container(key="upload_action"):
                     upload_recording(config, disabled=active or error is not None)
     if error:
-        st.warning(f"Update Configurations before starting: {error}")
+        notify_once(f"Update Configurations before starting: {error}", key=("configuration", error))
     # Refresh navigation and reports only when the session changes running state.
     current_session = st.session_state.live
     if (current_session is not None and current_session.running) != running:
@@ -419,11 +453,24 @@ def recorder_controls():
 
 
 @st.fragment(run_every=1)
-def workspace_updates(show_home):
+def workspace_updates(show_home, show_cost=False):
     drain_session_events()
     session = st.session_state.live
     if session is not None and not session.running and running:
         st.rerun()
+    if show_cost:
+        config = st.session_state.active_config or st.session_state.draft_config
+        result = st.session_state.pending_report or st.session_state.latest
+        render_session_notice()
+        render_cost_estimation(
+            session.usage_tracker.snapshot() if session else None,
+            active=session is not None and session.running,
+            uploaded=st.session_state.source_name is not None,
+            source_name=st.session_state.source_name,
+            analysis_interval=config.get("analysis_interval", ANALYSIS_INTERVAL),
+            final_report=bool(result and result.get("is_final")),
+        )
+        return
     if not show_home:
         return
     active = session is not None and session.running
@@ -469,8 +516,7 @@ def workspace_updates(show_home):
                     help="Download a readable report. Open it in a browser to print or save as PDF.",
                 )
         with st.container(height=430, border=False, key="report_content_scroll"):
-            for message in st.session_state.errors[-5:]:
-                st.error(message)
+            render_session_notice()
             if result is None:
                 if selected == "coverage" and topics:
                     st.markdown(topic_coverage_html(topics, {}, show_heading=False), unsafe_allow_html=True)
@@ -496,10 +542,13 @@ def workspace_updates(show_home):
                     render_report([section], result["report"], show_heading=False)
 
 
-if page == "Conversation Studio":
+if page in ("Conversation Studio", "Cost Estimation"):
+    # Keep the recorder at the same position on both pages so navigation does
+    # not unmount the browser microphone component during live capture.
     with st.container(key="recording_workspace"):
+        heading = st.empty()
         recorder_controls()
-        workspace_updates(True)
+        workspace_updates(page == "Conversation Studio", show_cost=page == "Cost Estimation")
 else:
     heading, interval_button = st.columns([4, 1], vertical_alignment="top")
     with heading:
