@@ -65,21 +65,37 @@ def normalize_section_ids(sections):
     normalized = copy.deepcopy(sections)
     used = set()
     for section in normalized:
-        section["id"] = make_section_id(section["label"], used)
+        if is_record_check_section(section):
+            section["label"] = RECORD_CHECK_LABEL
+            section["id"] = make_section_id("Record Check", used)
+        else:
+            section["id"] = make_section_id(section["label"], used)
         used.add(section["id"])
     return normalized
 
 
 MAX_CRM_CHARS = 20_000
-RECORD_CHECK_LABEL = "Record Check"
+RECORD_CHECK_LABEL = "CRM Comparison"
+
+
+def is_record_check_section(section):
+    return (section.get("label", "").strip().casefold() in ("record check", RECORD_CHECK_LABEL.casefold())
+            or section.get("id") == "record_check") and section.get("type") in ("list", "text")
+
+
 RECORD_CHECK_INSTRUCTION = (
     "Compare the conversation with the CRM record in the configuration. For every "
-    "field in the record, and for each claim in its description, return one line: "
-    "the field or claim name, then Consistent, Differs or Not mentioned, then what "
-    "the record says and, when the conversation addressed it, a short quote of what "
-    "was said. Never omit a field. Use Not mentioned when the topic has not come up; "
-    "that is not a difference. Use Differs only when something said conflicts with "
-    "the record."
+    "field in the record, and for each claim in its description, return a comparison "
+    "object with field, status, explanation and evidence. Use exact CRM field names; "
+    "name description claims as 'description (claim being compared)'. Never omit a "
+    "field. status must be consistent, differs or unconfirmed. consistent means a "
+    "conversation statement agrees with the CRM value; it does not establish truth. "
+    "differs requires a conversation statement conflicting with the CRM value. "
+    "unconfirmed covers missing mentions, partial confirmation, unclear speakers "
+    "and insufficient evidence. A record being read aloud is not confirmation. "
+    "Explain the comparison and retain qualifications and disputed accounts. Provide "
+    "a short verbatim conversation excerpt in evidence for consistent and differs; "
+    "use an empty evidence string when nothing relevant was spoken. Do not invent quotes."
 )
 
 
@@ -118,9 +134,12 @@ def record_check_section():
 
 
 def ensure_record_check_section(sections):
-    """Append the Record Check section unless one with that label already exists."""
-    sections = list(sections)
-    if any(s.get("label", "").strip().casefold() == RECORD_CHECK_LABEL.casefold() for s in sections):
+    """Rename legacy sections and append a CRM comparison only if none exists."""
+    sections = copy.deepcopy(list(sections))
+    if any(is_record_check_section(s) for s in sections):
+        for section in sections:
+            if is_record_check_section(section):
+                section["label"] = RECORD_CHECK_LABEL
         return sections
     return sections + [record_check_section()]
 

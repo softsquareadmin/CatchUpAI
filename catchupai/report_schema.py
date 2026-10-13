@@ -6,6 +6,7 @@ import json
 from jsonschema import Draft202012Validator
 
 from .models import validate_report_sections
+from .record_check import STATUSES, is_record_check, record_check_schema
 
 
 TOOL_NAME = "update_conversation_report"
@@ -20,7 +21,9 @@ def build_report_schema(report_sections, topics=(), *, is_final=True):
             continue
         kind = section["type"]
         field = {"description": section["instruction"]}
-        if kind == "text":
+        if is_record_check(section):
+            field = record_check_schema()
+        elif kind == "text":
             field["type"] = "string"
         elif kind == "list":
             field.update(type="array", items={"type": "string"})
@@ -131,6 +134,15 @@ def validate_report(report, schema):
     if errors:
         details = "; ".join(f"{'.'.join(map(str, error.path)) or 'report'}: {error.message}" for error in errors)
         raise ValueError(f"Invalid report: {details}")
+    for key, field in schema.get("properties", {}).items():
+        item_schema = field.get("items", {})
+        if item_schema.get("properties", {}).get("status", {}).get("enum") != list(STATUSES):
+            continue
+        for comparison in report.get(key, []):
+            if not comparison["field"].strip() or not comparison["explanation"].strip():
+                raise ValueError("Record comparisons require a field name and explanation.")
+            if comparison["status"] != "unconfirmed" and not comparison["evidence"].strip():
+                raise ValueError("Consistent or differing record comparisons require conversation evidence.")
     coverage = report.get("topic_coverage", {}) if schema.get("properties", {}).get("topic_coverage", {}).get("type") == "object" else {}
     for topic in coverage.values():
         for criterion in topic["criteria"].values():

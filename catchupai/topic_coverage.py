@@ -1,6 +1,8 @@
 """Shared topic coverage calculation and portable expandable report markup."""
 from html import escape
 
+COVERAGE_SYMBOLS = {"covered": "&#10003;", "partial": "&#9684;", "unanswered": "!", "pending": "&hellip;"}
+
 
 def coverage_status(result):
     statuses = [c["status"] for c in result["criteria"].values()]
@@ -16,7 +18,7 @@ def topic_coverage_html(topics, report, *, show_heading=True):
         return ""
     results = report.get("topic_coverage", {})
     labels = {"covered": "Covered", "partial": "Partial", "unanswered": "Unanswered", "pending": "Awaiting analysis"}
-    symbols = {"covered": "&#10003;", "partial": "&#9684;", "unanswered": "!", "pending": "&hellip;"}
+    symbols = COVERAGE_SYMBOLS
     scores = {"covered": 100, "partial": 50, "unanswered": 0, "pending": 0}
     statuses = {t["id"]: coverage_status(results[t["id"]]) if results.get(t["id"]) else "pending" for t in topics}
     counts = {status: sum(s == status for s in statuses.values()) for status in labels}

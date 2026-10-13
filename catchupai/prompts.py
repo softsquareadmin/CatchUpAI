@@ -3,7 +3,8 @@
 import json
 import copy
 
-from .models import validate_config
+from .models import validate_config, RECORD_CHECK_INSTRUCTION
+from .record_check import is_record_check
 
 
 CORE_SYSTEM_INSTRUCTION = """You are a passive real-time conversation analysis system.
@@ -67,6 +68,9 @@ def build_analysis_instructions(config, *, is_final=True):
         for section in config["report"]["sections"]
         if is_final or not section.get("final_only", False)
     ]
+    for section in config["report"]["sections"]:
+        if is_record_check(section):
+            section["instruction"] = RECORD_CHECK_INSTRUCTION
     configuration_json = json.dumps(config, ensure_ascii=True, indent=2)
     has_crm = "crm_content" in config["conversation"]
     topics = config["conversation"].get("topics_to_cover", [])

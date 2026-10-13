@@ -6,7 +6,7 @@ import re
 import tempfile
 import uuid
 
-from .models import validate_config
+from .models import validate_config, is_record_check_section, RECORD_CHECK_LABEL
 
 
 TEMPLATE_DIRECTORY = Path(__file__).resolve().parent.parent / "configuration_templates"
@@ -30,6 +30,9 @@ def load_template(template_id):
     if not isinstance(document.get("name"), str) or not document["name"].strip():
         raise ValueError("Template name is missing.")
     validate_config(document.get("config"))
+    for section in document["config"]["report"]["sections"]:
+        if is_record_check_section(section):
+            section["label"] = RECORD_CHECK_LABEL
     return document
 
 

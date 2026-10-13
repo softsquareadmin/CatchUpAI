@@ -13,7 +13,7 @@ from catchupai.frontend import conversation_editor, editable_row, render_report,
 from catchupai.config import ANALYSIS_INTERVAL
 from catchupai.session import LiveSession
 from catchupai.browser_audio import BrowserAudioSession, browser_recorder
-from catchupai.models import default_config, normalize_section_ids, validate_config
+from catchupai.models import default_config, normalize_section_ids, validate_config, is_record_check_section, RECORD_CHECK_LABEL
 from catchupai.recording import recording_info
 from catchupai.report_export import build_report_document
 from catchupai.templates import list_templates, load_template, save_template, delete_template
@@ -478,7 +478,7 @@ def workspace_updates(show_home, show_cost=False):
     config = st.session_state.active_config or st.session_state.draft_config
     topics = config["conversation"].get("topics_to_cover", [])
     sections = {f"section:{section['id']}": section for section in config["report"]["sections"]}
-    labels = {"coverage": "Topic Coverage", **{key: section["label"] for key, section in sections.items()}}
+    labels = {"coverage": "Topic Coverage", **{key: RECORD_CHECK_LABEL if is_record_check_section(section) else section["label"] for key, section in sections.items()}}
     if st.session_state.get("report_navigation") not in labels:
         st.session_state.report_navigation = "coverage"
     todo, report = st.columns([1, 2.45], gap="small")
@@ -539,7 +539,8 @@ def workspace_updates(show_home, show_cost=False):
                 if section.get("final_only", False) and not result.get("is_final", False):
                     st.caption("This section will be generated after recording ends or when an uploaded recording is analyzed.")
                 else:
-                    render_report([section], result["report"], show_heading=False)
+                    render_report([section], result["report"], show_heading=False,
+                                  crm_content=config["conversation"].get("crm_content"))
 
 
 if page in ("Conversation Studio", "Cost Estimation"):

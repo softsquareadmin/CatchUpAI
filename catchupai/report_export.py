@@ -1,15 +1,19 @@
 """A portable, printable report document using the session's configured labels."""
 from html import escape
 from .topic_coverage import COVERAGE_CSS, topic_coverage_html
+from .record_check import RECORD_CHECK_CSS, is_record_check, record_check_html
+from .models import RECORD_CHECK_LABEL
 
 
 def build_report_document(config, result, source_name=None):
     blocks = [topic_coverage_html(config["conversation"].get("topics_to_cover", []), result["report"])]
     for section in config["report"]["sections"]:
         value = result["report"].get(section["id"])
-        label = escape(section["label"])
+        label = escape(RECORD_CHECK_LABEL if is_record_check(section) else section["label"])
         if value is None:
             content = "<p class='muted'>Unknown / not provided</p>"
+        elif is_record_check(section):
+            content = record_check_html(value, config["conversation"].get("crm_content"), expand_all=True)
         elif section["type"] == "list":
             content = "<ul>" + "".join(f"<li>{escape(item)}</li>" for item in value) + "</ul>" if value else "<p class='muted'>Nothing established yet</p>"
         else:
@@ -30,6 +34,7 @@ def build_report_document(config, result, source_name=None):
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CatchUpAI Conversation Report</title><style>
 {COVERAGE_CSS}
+{RECORD_CHECK_CSS}
 body{{font-family:Arial,sans-serif;max-width:820px;margin:48px auto;padding:0 24px;color:#24262c;line-height:1.6}}
 h1{{margin-bottom:4px}}h2{{font-size:18px;margin:0 0 10px}}section{{border-top:1px solid #ddd;padding:20px 0;break-inside:avoid}}
 p,li{{white-space:pre-wrap;overflow-wrap:anywhere}}.muted{{color:#666}}.meta{{font-size:13px;color:#666}}

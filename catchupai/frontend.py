@@ -14,6 +14,7 @@ import streamlit as st
 from .models import (FIELD_TYPES, MAX_CRM_CHARS, RECORD_CHECK_LABEL, ensure_record_check_section,
                      normalize_section_ids, parse_crm_content, validate_report_sections)
 from .topic_coverage import COVERAGE_CSS, topic_coverage_html
+from .record_check import RECORD_CHECK_CSS, is_record_check, record_check_html
 from .document_topics import DOCUMENT_TYPES, extract_document_topics, merge_imported_topics
 
 
@@ -28,7 +29,7 @@ def inline_error(message, placeholder=None):
 
 def workspace_styles():
     css = (Path(__file__).resolve().parent.parent / "assets" / "workspace.css").read_text(encoding="utf-8")
-    st.markdown(f"<style>{css}\n{COVERAGE_CSS}</style><div class='top-brand'>{icon('wave')}<span>CatchUpAI</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<style>{css}\n{COVERAGE_CSS}\n{RECORD_CHECK_CSS}</style><div class='top-brand'>{icon('wave')}<span>CatchUpAI</span></div>", unsafe_allow_html=True)
 
 
 def icon(name):
@@ -245,16 +246,16 @@ def crm_summary(content):
 
 def remove_crm_content():
     st.session_state.crm_content = None
-    # The Record Check section is meaningless without a record.
+    # The CRM comparison section is meaningless without a record.
     st.session_state.section_rows = [r for r in st.session_state.section_rows
-                                     if r["value"].get("label", "").strip().casefold() != RECORD_CHECK_LABEL.casefold()]
-    st.session_state.crm_notice = "Removed the CRM content and its Record Check section."
+                                     if not is_record_check(r["value"])]
+    st.session_state.crm_notice = "Removed the CRM content and its CRM Comparison section."
 
 
 @st.dialog("CRM content", width="large")
 def crm_content_dialog():
     with st.container(key="crm_content_dialog"):
-        st.markdown('<p class="import-description">Paste the JSON for the CRM record. During the conversation CatchUpAI compares what is said with it and reports any differences in a Record Check section.</p>', unsafe_allow_html=True)
+        st.markdown('<p class="import-description">Paste the JSON for the CRM record. During the conversation CatchUpAI compares what is said with it and reports any differences in the CRM Comparison section.</p>', unsafe_allow_html=True)
         text = st.text_area("CRM JSON", key="crm_text", height=320, label_visibility="collapsed",
                             placeholder='{\n  "object": "Case",\n  "fields": {"Name": "..."},\n  "description": "..."\n}')
         st.caption(f"{len(text):,}/{MAX_CRM_CHARS:,} characters")
@@ -273,7 +274,7 @@ def crm_content_dialog():
             if len(sections) > len(rows):
                 rows.append(editable_row(sections[-1]))
             st.session_state.crm_content = content
-            st.session_state.crm_notice = "Saved the CRM content. A Record Check section was added to the report."
+            st.session_state.crm_notice = "Saved the CRM content. A CRM Comparison section was added to the report."
             st.rerun()
 
 
@@ -333,7 +334,7 @@ def conversation_editor(config, disabled=False):
             topic_import_dialog()
     if topic_errors:
         inline_error(" ".join(topic_errors), topics_error)
-    field_heading("CRM content", "Paste a record from your CRM as JSON. CatchUpAI compares the conversation with it and lists differences in a Record Check section of the report.")
+    field_heading("CRM content", "Paste a record from your CRM as JSON. CatchUpAI compares the conversation with it and lists differences in the CRM Comparison section of the report.")
     if "crm_content" not in st.session_state:
         st.session_state.crm_content = copy.deepcopy(config.get("crm_content"))
     crm_content = st.session_state.crm_content
@@ -344,7 +345,7 @@ def conversation_editor(config, disabled=False):
         crm_clicked = add_crm.button("Edit CRM content" if crm_content else "Add CRM content", icon=":material/edit_note:" if crm_content else ":material/add:", key="open_crm_content", disabled=disabled, use_container_width=True)
         if crm_content:
             remove_crm.button("Remove", icon=":material/close:", key="remove_crm_content", disabled=disabled, use_container_width=True,
-                              help="Remove the CRM content and its Record Check section.", on_click=remove_crm_content)
+                              help="Remove the CRM content and its CRM Comparison section.", on_click=remove_crm_content)
     if crm_content:
         st.caption(f"CRM content added: {crm_summary(crm_content)}")
     if crm_clicked:
@@ -383,6 +384,11 @@ def report_editor(disabled=False, tracking_topics=False):
     for index, row in enumerate(rows):
         section = row["value"]
         key = row["key"]
+        if section["label"].strip().casefold() == "record check":
+            section["label"] = RECORD_CHECK_LABEL
+            label_key = f"label_{key}"
+            if st.session_state.get(label_key, "").strip().casefold() == "record check":
+                st.session_state[label_key] = RECORD_CHECK_LABEL
         with removable_expander(f"{index + 1}. {section['label'] or 'Untitled section'}", key, "section_rows", kind="section", disabled=disabled):
             section_error = st.empty()
             label = st.text_input("Section Label", value=section["label"], key=f"label_{key}", disabled=disabled)
@@ -442,7 +448,7 @@ def report_editor(disabled=False, tracking_topics=False):
     return {"sections": normalize_section_ids(sections)}
 
 
-def render_report(sections, report, topics=(), *, show_heading=True):
+def render_report(sections, report, topics=(), *, show_heading=True, crm_content=None):
     coverage = topic_coverage_html(topics, report, show_heading=show_heading)
     if coverage:
         st.markdown(coverage, unsafe_allow_html=True)
@@ -454,6 +460,8 @@ def render_report(sections, report, topics=(), *, show_heading=True):
         if value is None:
             message = "Unknown / not yet established" if section["id"] in report else "Not provided"
             body = f'<p class="report-empty">{message}</p>'
+        elif is_record_check(section):
+            body = record_check_html(value, crm_content)
         elif kind == "list":
             if value:
                 body = '<ul class="report-items">' + ''.join(f'<li>{escape(str(item))}</li>' for item in value) + '</ul>'
@@ -468,7 +476,8 @@ def render_report(sections, report, topics=(), *, show_heading=True):
         else:
             body = f'<p class="report-prose">{escape(str(value))}</p>' if value else '<p class="report-empty">Nothing established yet</p>'
         if show_heading:
-            cards.append(f'<section class="report-section {"question-section" if is_question else ""}"><div class="report-section-heading"><span class="icon-tile">{icon("file")}</span><h3>{escape(section["label"])}</h3></div><div class="report-section-content">{body}</div></section>')
+            label = RECORD_CHECK_LABEL if is_record_check(section) else section["label"]
+            cards.append(f'<section class="report-section {"question-section" if is_question else ""}"><div class="report-section-heading"><span class="icon-tile">{icon("file")}</span><h3>{escape(label)}</h3></div><div class="report-section-content">{body}</div></section>')
         else:
             cards.append(body)
     st.markdown('<div class="report-sections">' + ''.join(cards) + '</div>', unsafe_allow_html=True)
