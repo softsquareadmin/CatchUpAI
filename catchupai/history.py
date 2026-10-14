@@ -9,7 +9,8 @@ from .usage import saved_cost_snapshot
 @st.cache_data(ttl=20, max_entries=4, show_spinner=False)
 def recent_sessions():
     return SupabaseStore().request("GET", "/rest/v1/audio_sessions", params={
-        "select": "id,title,status,created_at", "order": "created_at.desc,id.desc", "limit": 20})
+        "select": "id,title,status,created_at", "deleted_at": "is.null",
+        "order": "created_at.desc,id.desc", "limit": 20})
 
 
 def ordered_reports(rows):
@@ -28,7 +29,7 @@ def report_result(row):
 def load_session(session_id):
     session_id = canonical_id(session_id)
     store = SupabaseStore()
-    sessions = store.rows("audio_sessions", id="eq." + session_id)
+    sessions = store.rows("audio_sessions", id="eq." + session_id, deleted_at="is.null")
     if not sessions:
         raise ValueError("This session is no longer available.")
     saved = sessions[0]

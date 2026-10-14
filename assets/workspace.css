@@ -16,12 +16,15 @@
 [data-testid="stSidebar"] .st-key-recent_sessions_list [data-testid="stIconMaterial"] { font-size:18px; flex-shrink:0; }
 [data-testid="stSidebar"] .st-key-recent_sessions_list [data-testid="stMenuButtonButton"] { width:100%; padding:0; justify-content:center; color:#7189b0; }
 [data-testid="stMenuButtonBody"]:has([role="menuitem"]) { min-width:130px; border:1px solid #dbe6fa; border-radius:8px; background:#fff; box-shadow:0 8px 24px #142b4b24; }
-[data-testid="stDialog"]:has(.st-key-rename_session_dialog) > div { width:480px!important; }
-.st-key-rename_session_dialog { padding:6px 0; }
-.st-key-rename_session_dialog > [data-testid="stVerticalBlock"] { gap:16px; }
-.st-key-rename_session_footer { margin-top:12px; }
+[data-testid="stDialog"]:has(.st-key-rename_session_dialog, .st-key-delete_session_dialog) > div { width:480px!important; }
+.st-key-rename_session_dialog, .st-key-delete_session_dialog { padding:6px 0; }
+.st-key-rename_session_dialog > [data-testid="stVerticalBlock"],
+.st-key-delete_session_dialog > [data-testid="stVerticalBlock"] { gap:16px; }
+.st-key-rename_session_footer, .st-key-delete_session_footer { margin-top:12px; }
 .st-key-save_session_rename button,
-.st-key-save_session_rename button p { color:#fff!important; }
+.st-key-save_session_rename button p,
+.st-key-confirm_session_delete button,
+.st-key-confirm_session_delete button p { color:#fff!important; }
 /* Archived audio replaces capture controls on both Studio and Cost Estimation. */
 .st-key-saved_audio_card { padding:16px 20px 8px; background:#fff; border:1px solid #dbe6fa; border-radius:18px; box-shadow:0 5px 12px #142b4b24; }
 .st-key-saved_audio_card > [data-testid="stVerticalBlock"] { gap:12px; }
@@ -187,6 +190,20 @@
 [data-testid="stHeader"] { height:62px; min-height:62px; box-sizing:border-box; background:#fff; border-bottom:1px solid var(--line); }
 .top-brand { position:fixed; top:17px; left:30px; display:flex; align-items:center; gap:12px; color:var(--ink); font-size:22px; font-weight:700; line-height:28px; pointer-events:none; }
 .top-brand svg { width:23px; height:25px; flex-shrink:0; }
+.company-logo { position:fixed; top:7px; right:72px; width:164px; height:48px; z-index:101; pointer-events:none; }
+.company-logo img { display:block; width:100%; height:100%; object-fit:contain; object-position:center; }
+/* Reserve the logo's space even while the running/Stop widget is visible. */
+[data-testid="stStatusWidget"] { margin-right:200px; }
+@media(max-width:640px) {
+  .company-logo { top:12px; right:64px; width:124px; height:38px; }
+  [data-testid="stStatusWidget"] { position:fixed; top:64px; right:12px; margin-right:0; padding:4px 8px; border-radius:6px; background:#fff; box-shadow:0 2px 8px #142b4b24; }
+}
+@media(max-width:420px) {
+  .top-brand { left:12px; gap:6px; font-size:18px; }
+  .company-logo { top:16px; right:60px; width:100px; height:30px; }
+}
+/* Hide hosting actions and keep Streamlit's three-dot menu. */
+[data-testid="stToolbarActions"], [data-testid="stAppDeployButton"] { display:none!important; }
 [data-testid="stToolbar"] { top:0; right:0; height:100%; padding:0 24px; box-sizing:border-box; }
 [data-testid="stToolbar"] > div { height:100%; align-items:center; }
 [data-testid="stToolbar"] > div > div:has([data-testid="stAppDeployButton"]) { margin-right:0; height:100%; align-items:center; }
@@ -273,7 +290,11 @@ button[kind="secondary"]:hover { border-color:var(--blue); background:#f7fbff; }
 button:disabled { opacity:.55; }
 div[class*="st-key-remove_speaker_"] button { width:42px; min-width:42px; color:#26334f; }
 div[class*="st-key-remove_speaker_"] button p { display:none; }
-div[class*="st-key-delete_"] button { color:#df2929; border-color:#ff8585; }
+div[class*="st-key-delete_"]:not(.st-key-delete_session_dialog):not(.st-key-delete_session_footer) button { color:#df2929; border-color:#ff8585; }
+.st-key-delete_session_footer button[kind="secondary"] { border-color:var(--line); }
+.st-key-delete_session_footer button[kind="primary"] { border-color:var(--blue); }
+.st-key-delete_session_footer button:hover { border-color:var(--blue); }
+.st-key-delete_session_footer button:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
 .st-key-analysis_interval_button button { color:var(--blue); border-color:#8eb7ff; padding:0 18px; min-height:42px; }
 .analysis-interval-value { color:var(--blue); font-size:28px; font-weight:700; text-align:center; margin:16px 0 22px; }
 .analysis-interval-ticks { display:flex; justify-content:space-between; color:var(--muted); font-size:12px; margin:-8px 0 20px; }

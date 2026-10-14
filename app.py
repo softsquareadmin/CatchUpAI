@@ -2,6 +2,7 @@
 from html import escape
 from urllib.parse import quote
 from pathlib import Path
+from datetime import datetime, timezone
 import copy
 import queue
 import time
@@ -100,8 +101,12 @@ def begin_session_rename(session_id, title):
 
 
 def select_session_action(session_id, title):
-    if st.session_state.get(f"session_options_{session_id}") == "Rename":
+    action = st.session_state.get(f"session_options_{session_id}")
+    if action == "Rename":
         begin_session_rename(session_id, title)
+    elif action == "Delete":
+        st.session_state.delete_session_target = session_id
+        st.session_state.delete_session_title = title
 
 
 def dismiss_session_rename():
@@ -112,7 +117,8 @@ def rename_session(session_id, title):
     title = title.strip()
     if not title:
         raise ValueError("Enter a session name.")
-    rows = SupabaseStore().patch("audio_sessions", {"title": title}, id="eq." + session_id)
+    rows = SupabaseStore().patch("audio_sessions", {"title": title}, id="eq." + session_id,
+                                 deleted_at="is.null")
     if not rows:
         raise ValueError("This session is no longer available.")
     recent_sessions.clear()
@@ -137,6 +143,43 @@ def rename_session_dialog():
                     inline_error(str(error), error_slot)
                 else:
                     dismiss_session_rename()
+                    st.rerun()
+
+
+def dismiss_session_delete():
+    st.session_state.delete_session_target = None
+    st.session_state.delete_session_title = None
+
+
+def delete_session(session_id):
+    rows = SupabaseStore().patch("audio_sessions", {"deleted_at": datetime.now(timezone.utc).isoformat()},
+                                 id="eq." + session_id, deleted_at="is.null")
+    if not rows:
+        raise ValueError("This session is no longer available.")
+    recent_sessions.clear()
+    if st.session_state.saved_session_id == session_id:
+        st.session_state.saved_session_id = None
+        st.session_state.saved_session_data = None
+        st.session_state.saved_report_id = None
+
+
+@st.dialog("Delete session?", width="small", on_dismiss=dismiss_session_delete)
+def delete_session_dialog():
+    with st.container(key="delete_session_dialog"):
+        st.write(f'Delete "{st.session_state.delete_session_title}" from Recent Sessions?')
+        error_slot = st.empty()
+        with st.container(key="delete_session_footer"):
+            _, cancel, confirm = st.columns([1.5, 1, 1.3], gap="small")
+            if cancel.button("Cancel", key="cancel_session_delete", use_container_width=True):
+                dismiss_session_delete()
+                st.rerun()
+            if confirm.button("Delete", key="confirm_session_delete", type="primary", use_container_width=True):
+                try:
+                    delete_session(st.session_state.delete_session_target)
+                except (OSError, ValueError) as error:
+                    inline_error(str(error), error_slot)
+                else:
+                    dismiss_session_delete()
                     st.rerun()
 
 
@@ -311,7 +354,7 @@ with st.sidebar:
                     name.button(saved["title"], icon=":material/description:", key=f"open_session_{session_id}",
                                 type="primary" if selected else "secondary", help=saved["title"],
                                 disabled=busy, on_click=open_saved_session, args=(session_id,), use_container_width=True)
-                    menu.menu_button(":material/more_horiz:", ["Rename"], key=f"session_options_{session_id}",
+                    menu.menu_button(":material/more_horiz:", ["Rename", "Delete"], key=f"session_options_{session_id}",
                                      help="Session options", disabled=busy, width="stretch",
                                      on_click=select_session_action, args=(session_id, saved["title"]))
 page = st.session_state.page
@@ -832,3 +875,5 @@ else:
 
 if st.session_state.get("rename_session_target"):
     rename_session_dialog()
+elif st.session_state.get("delete_session_target"):
+    delete_session_dialog()

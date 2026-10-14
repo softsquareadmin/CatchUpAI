@@ -13,6 +13,7 @@ Before using persistence, run these files in order in the project's SQL Editor:
 
 1. `supabase/migrations/202610140001_audio_persistence.sql`
 2. `supabase/migrations/202610140002_session_costs.sql`
+3. `supabase/migrations/202610140003_session_soft_delete.sql`
 
 The REST secret key cannot create SQL tables. The migration creates `configurations`,
 `audio_sessions`, `session_reports` and the private `session-audio` bucket. The second
@@ -46,7 +47,10 @@ opens an archived recording directly in **Conversation Studio**. A playback card
 the session name, configuration and complete audio instead of capture controls. Moving
 to **Cost Estimation** keeps that recording and its saved costs selected. **New Session**
 returns to Studio with the normal recorder/uploader, also shown on the cost tab.
-Each session's three-dot menu shows **Rename**, which opens a styled dialog to edit its name.
+Each session's three-dot menu shows **Rename** and **Delete**. Rename opens a dialog
+to edit its name. Delete asks for confirmation, then sets the session's `deleted_at`
+to the current UTC time and hides it from Recent Sessions. Its audio, reports and
+costs remain stored. Apply the third migration before using the session menu.
 
 The `.persistence/` directory is a local retry outbox containing sensitive accepted
 reports and whole audio files until Supabase acknowledges their writes. It is excluded

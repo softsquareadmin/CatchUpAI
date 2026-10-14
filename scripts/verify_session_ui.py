@@ -123,8 +123,9 @@ exec(compile(Path(namespace['__file__']).read_text(encoding='utf-8'),namespace['
             menu_selector = ".st-key-session_options_00000000-0000-0000-0000-000000000001 button"
             assert js(f"!document.querySelector('{menu_selector}').innerText.includes('expand_more')")
             js(f"document.querySelector('{menu_selector}').click()")
-            wait_for("document.querySelectorAll('[role=menuitem]').length === 1")
+            wait_for("document.querySelectorAll('[role=menuitem]').length === 2")
             assert js("document.querySelector('[role=menuitem]').innerText.trim() === 'Rename'")
+            assert js("document.querySelectorAll('[role=menuitem]')[1].innerText.trim() === 'Delete'")
             js("document.querySelector('[role=menuitem]').click()")
             wait_for("document.querySelector('.st-key-rename_session_dialog input')?.value === 'Client interview'")
             dialog_width = js("document.querySelector('[role=dialog]').getBoundingClientRect().width")
@@ -162,7 +163,7 @@ exec(compile(Path(namespace['__file__']).read_text(encoding='utf-8'),namespace['
             js("document.querySelector('.st-key-nav_payments button').click()")
             wait_for("document.body.innerText.includes('Your audio costs will appear here')")
             assert js("document.body.innerText.includes('Record or Upload a Conversation')")
-            print("Browser checks passed: rename-only menu without chevron, styled dialog, playback and session navigation.")
+            print("Browser checks passed: Rename/Delete menu without chevron, styled dialog, playback and session navigation.")
         finally:
             if connection:
                 try:

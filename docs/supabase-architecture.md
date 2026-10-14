@@ -250,7 +250,7 @@ Minimum indexes:
 
 Store wall-clock timestamps in UTC and format locally in the UI. Audio position remains elapsed seconds.
 
-Deleting a configuration sets only `configurations.deleted_at`; its row, session references and snapshots remain intact. Exclude deleted configurations from normal selection and editing, and provide no application hard-delete operation. Session deletion is outside the current UI scope. If added later, coordinate report deletion with whole-audio object removal: database cascades do not delete Storage objects.
+Deleting a configuration sets only `configurations.deleted_at`; its row, session references and snapshots remain intact. Exclude deleted configurations from normal selection and editing, and provide no application hard-delete operation. The Recent Sessions menu offers Delete with a confirmation dialog. Confirming updates only `audio_sessions.deleted_at` to the current UTC time, preserving any existing deletion timestamp. Recent-session queries, saved-session loads and renames exclude deleted rows. Deleting the selected session clears its displayed context. Audio objects, reports and costs remain stored. Apply `202610140003_session_soft_delete.sql` to add the session deletion column and active-history index.
 
 ## 9. Implementation order
 

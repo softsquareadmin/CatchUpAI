@@ -4,6 +4,7 @@ import uuid
 import copy
 import hashlib
 import json
+import base64
 from contextlib import contextmanager
 from html import escape
 from pathlib import Path
@@ -28,8 +29,13 @@ def inline_error(message, placeholder=None):
 
 
 def workspace_styles():
-    css = (Path(__file__).resolve().parent.parent / "assets" / "workspace.css").read_text(encoding="utf-8")
-    st.markdown(f"<style>{css}\n{COVERAGE_CSS}\n{RECORD_CHECK_CSS}</style><div class='top-brand'>{icon('wave')}<span>CatchUpAI</span></div>", unsafe_allow_html=True)
+    assets = Path(__file__).resolve().parent.parent / "assets"
+    css = (assets / "workspace.css").read_text(encoding="utf-8")
+    logo = base64.b64encode((assets / "Softsquare Agentic AI logo.png").read_bytes()).decode("ascii")
+    st.markdown(f"<style>{css}\n{COVERAGE_CSS}\n{RECORD_CHECK_CSS}</style>"
+                f"<div class='top-brand'>{icon('wave')}<span>CatchUpAI</span></div>"
+                f"<div class='company-logo'><img src='data:image/png;base64,{logo}' alt='Softsquare — The Agentic AI Experts'></div>",
+                unsafe_allow_html=True)
 
 
 def icon(name):

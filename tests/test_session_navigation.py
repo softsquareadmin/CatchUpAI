@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime
 from pathlib import Path
 import queue
 from types import SimpleNamespace
@@ -8,7 +9,7 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 from catchupai import templates
 
-from catchupai.history import recent_sessions, ordered_reports
+from catchupai.history import recent_sessions, ordered_reports, load_session
 from catchupai.models import default_config
 from catchupai.usage import calculate_cost, calculate_cost_breakdown
 
@@ -24,7 +25,8 @@ class FakeSessionStore:
         self.sessions = [dict(id=identity, title=title, status="completed", source_type="upload",
             configuration_snapshot=copy.deepcopy(config), configuration_id=OTHER_ID,
             audio_storage_status="stored", audio_path=identity + "/audio.wav", duration_seconds=205,
-            original_filename="old.wav", created_at="2026-10-14T10:00:00Z", started_at="2026-10-14T10:00:00Z")
+            original_filename="old.wav", deleted_at=None,
+            created_at="2026-10-14T10:00:00Z", started_at="2026-10-14T10:00:00Z")
             for identity, title in [(SESSION_ID, "Client interview"), (OTHER_ID, "Follow-up conversation")]]
         self.reports = [dict(id=identity, report_type=kind, audio_position_seconds=position, checkpoint=1,
             generated_at="2026-10-14T10:00:00Z", result_metadata={},
@@ -45,13 +47,16 @@ class FakeSessionStore:
     def request(self, method, path, **kwargs):
         if path.endswith("/configurations"):
             return [{"name": "Interview template"}]
-        return [{k: row[k] for k in ("id", "title", "status", "created_at")} for row in self.sessions]
+        params = kwargs.get("params", {})
+        return [{k: row[k] for k in ("id", "title", "status", "created_at")} for row in self.sessions
+                if params.get("deleted_at") != "is.null" or row["deleted_at"] is None]
 
     def rows(self, table, **filters):
         if table == "configurations":
             return []
         if table == "audio_sessions":
-            return [copy.deepcopy(row) for row in self.sessions if "eq." + row["id"] == filters["id"]]
+            return [copy.deepcopy(row) for row in self.sessions if "eq." + row["id"] == filters["id"]
+                    and (filters.get("deleted_at") != "is.null" or row["deleted_at"] is None)]
         return copy.deepcopy(self.reports if table == "session_reports" else self.costs)
 
     def signed_audio_url(self, path, expires_in=900):
@@ -59,6 +64,8 @@ class FakeSessionStore:
 
     def patch(self, table, values, **filters):
         row = next(row for row in self.sessions if "eq." + row["id"] == filters["id"])
+        if filters.get("deleted_at") == "is.null" and row["deleted_at"] is not None:
+            return []
         row.update(values)
         return [copy.deepcopy(row)]
 
@@ -163,11 +170,11 @@ class SessionNavigationTests(unittest.TestCase):
     def rename_menu(self, app, identity=SESSION_ID):
         return next(menu for menu in app.get("menu_button") if menu.key == "session_options_" + identity)
 
-    def test_rename_is_only_menu_option_and_opens_a_dialog(self):
+    def test_menu_has_rename_and_delete_and_rename_opens_a_dialog(self):
         app = self.app()
         menu = self.rename_menu(app)
         self.assertEqual(menu.label, ":material/more_horiz:")
-        self.assertEqual(menu.options, ["Rename"])
+        self.assertEqual(menu.options, ["Rename", "Delete"])
         self.assertFalse(any(field.label == "Session name" for field in app.text_input))
         menu.click("Rename").run()
         self.assertEqual(len(app.exception), 0)
@@ -199,6 +206,74 @@ class SessionNavigationTests(unittest.TestCase):
         self.assertEqual(app.session_state.rename_session_target, SESSION_ID)
         self.assertIn("Enter a session name", self.content(app))
         self.assertEqual(self.store.sessions[0]["title"], "Client interview")
+
+    def test_cancel_deletion_keeps_session_unchanged(self):
+        app = self.app()
+        before = copy.deepcopy(self.store.sessions)
+        self.rename_menu(app).click("Delete").run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertIn('Delete "Client interview"', self.content(app))
+        self.assertEqual(self.store.sessions, before)
+        app.button(key="cancel_session_delete").click().run()
+        self.assertIsNone(app.session_state.delete_session_target)
+        self.assertEqual(self.store.sessions, before)
+        self.assertEqual(app.button(key="open_session_" + SESSION_ID).label, "Client interview")
+
+    def test_confirm_delete_sets_only_timestamp_and_clears_selected_session(self):
+        app = self.app()
+        app.button(key="open_session_" + SESSION_ID).click().run()
+        app.button(key="nav_payments").click().run()
+        before = copy.deepcopy(self.store.sessions[0])
+        reports, costs = copy.deepcopy(self.store.reports), copy.deepcopy(self.store.costs)
+        self.rename_menu(app).click("Delete").run()
+        app.button(key="confirm_session_delete").click().run()
+        self.assertEqual(len(app.exception), 0)
+        after = copy.deepcopy(self.store.sessions[0])
+        deleted_at = datetime.fromisoformat(after.pop("deleted_at"))
+        self.assertEqual(deleted_at.utcoffset().total_seconds(), 0)
+        before.pop("deleted_at")
+        self.assertEqual(after, before)
+        self.assertEqual(self.store.reports, reports)
+        self.assertEqual(self.store.costs, costs)
+        self.assertIsNone(app.session_state.saved_session_id)
+        self.assertIsNone(app.session_state.saved_session_data)
+        self.assertIsNone(app.session_state.saved_report_id)
+        self.assertIsNone(app.session_state.delete_session_target)
+        self.assertEqual(app.session_state.page, "Cost Estimation")
+        self.assertFalse(any(button.key == "open_session_" + SESSION_ID for button in app.button))
+        self.assertNotIn("$0.000030", self.content(app))
+        with self.assertRaisesRegex(ValueError, "no longer available"):
+            load_session(SESSION_ID)
+
+    def test_delete_other_session_preserves_current_selection(self):
+        app = self.app()
+        app.button(key="open_session_" + SESSION_ID).click().run()
+        self.rename_menu(app, OTHER_ID).click("Delete").run()
+        app.button(key="confirm_session_delete").click().run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(app.session_state.saved_session_id, SESSION_ID)
+        self.assertIsNone(self.store.sessions[0]["deleted_at"])
+        self.assertIsNotNone(self.store.sessions[1]["deleted_at"])
+
+    def test_delete_failure_keeps_confirmation_open_and_session_available(self):
+        app = self.app()
+        self.rename_menu(app).click("Delete").run()
+        with patch.object(self.store, "patch", side_effect=OSError("Could not reach Supabase.")):
+            app.button(key="confirm_session_delete").click().run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(app.session_state.delete_session_target, SESSION_ID)
+        self.assertIn("Could not reach Supabase", self.content(app))
+        self.assertIsNone(self.store.sessions[0]["deleted_at"])
+
+    def test_stale_confirmation_preserves_existing_deletion_timestamp(self):
+        app = self.app()
+        self.rename_menu(app).click("Delete").run()
+        timestamp = "2026-10-14T10:30:00+00:00"
+        self.store.sessions[0]["deleted_at"] = timestamp
+        app.button(key="confirm_session_delete").click().run()
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(self.store.sessions[0]["deleted_at"], timestamp)
+        self.assertIn("no longer available", self.content(app))
 
 
 if __name__ == "__main__":

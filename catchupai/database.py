@@ -64,6 +64,8 @@ class SupabaseStore:
                 message = "Supabase rejected the server credentials or access permissions."
             elif code == "23505":
                 message = "A record with that name or identity already exists (deleted names remain reserved)."
+            elif code in ("42703", "PGRST204") and path.endswith("/audio_sessions"):
+                message = "Supabase setup is incomplete. Run supabase/migrations/202610140003_session_soft_delete.sql in SQL Editor."
             elif error.code == 404 or code in ("PGRST205", "42P01"):
                 migration = ("202610140002_session_costs.sql" if path.endswith("/session_costs") else
                              "202610140001_audio_persistence.sql")
@@ -96,7 +98,8 @@ class SupabaseStore:
 
     def check_schema(self):
         for table in ("configurations", "audio_sessions", "session_reports", "session_costs"):
-            self.request("GET", "/rest/v1/" + table, params={"select": "id", "limit": 0})
+            columns = "id,deleted_at" if table == "audio_sessions" else "id"
+            self.request("GET", "/rest/v1/" + table, params={"select": columns, "limit": 0})
 
     def create_session(self, row):
         inserted = self.insert("audio_sessions", row)
