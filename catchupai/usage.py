@@ -111,9 +111,10 @@ def calculate_cost(model, usage, api="realtime"):
 class UsageTracker:
     """One logical session, retained across browser Realtime reconnections."""
 
-    def __init__(self, session_id=None, log_path=LOG_PATH):
+    def __init__(self, session_id=None, log_path=LOG_PATH, on_record=None):
         self.session_id = session_id or uuid.uuid4().hex
         self.log_path = Path(log_path)
+        self.on_record = on_record
         self.total_cost = Decimal(0)
         self.unpriced_responses = 0
         self.usage_gaps = 0
@@ -130,6 +131,12 @@ class UsageTracker:
                     stream.write(json.dumps(record, ensure_ascii=True) + "\n")
         except OSError:
             _LOGGER.warning("Could not persist API usage to %s", self.log_path, exc_info=True)
+        if self.on_record is not None and record["event"] in ("api_response", "usage_gap"):
+            try:
+                # This sink only writes the local outbox; it never makes a network request.
+                self.on_record(copy.deepcopy(record))
+            except (OSError, ValueError):
+                _LOGGER.warning("Could not retain API costs for database persistence.", exc_info=True)
 
     def _base(self, event):
         return {"event": event, "session_id": self.session_id,
@@ -194,3 +201,25 @@ class UsageTracker:
             self._write(record)
             print("[API USAGE TOTAL] " + json.dumps(record))
             return record
+
+
+def saved_cost_snapshot(session_id, rows):
+    """Rebuild the existing dashboard envelope from persisted cost events."""
+    records = []
+    gaps = 0
+    for row in rows:
+        if row["event_type"] == "usage_gap":
+            gaps += 1
+            continue
+        records.append({"event": "api_response", "session_id": session_id, "response_id": row["response_id"],
+            "api": row["api"], "model": row["model"], "purpose": row.get("purpose"),
+            "status": row.get("response_status"), "logged_at": row["logged_at"], "usage": row.get("usage"),
+            "analysis": row.get("analysis") or {}, "breakdown": row.get("breakdown"),
+            "cost_usd": str(row["cost_usd"]) if row.get("cost_usd") is not None else None,
+            "rates_usd_per_million": row.get("rates_usd_per_million"),
+            "pricing_date": row.get("pricing_date"), "pricing_source": row.get("pricing_source")})
+    unknown = sum(record["cost_usd"] is None for record in records)
+    total = sum((Decimal(record["cost_usd"]) for record in records if record["cost_usd"] is not None), Decimal(0))
+    return {"session_id": session_id, "records": records, "observed_cost_usd": format(total, "f"),
+            "responses": len(records), "usage_gaps": gaps, "unpriced_responses": unknown,
+            "complete": bool(records) and gaps == 0 and unknown == 0}

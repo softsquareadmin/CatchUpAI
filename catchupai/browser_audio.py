@@ -26,12 +26,14 @@ browser_recorder = declare_component("browser_recorder", path=str(Path(__file__)
 class BrowserAudioSession:
     """Acknowledged input survives OpenAI failures; each new connection replays it."""
 
-    def __init__(self, config, session_id, client_factory=RealtimeConversationAnalyzer):
+    def __init__(self, config, session_id, client_factory=RealtimeConversationAnalyzer, persistence=None):
         validate_config(config)
         self.config = copy.deepcopy(config)
+        self.persistence = persistence
+        self.audio_archived = False
         self.analysis_interval = self.config.get("analysis_interval", ANALYSIS_INTERVAL)
         self.session_id = session_id
-        self.usage_tracker = UsageTracker(session_id=session_id)
+        self.usage_tracker = UsageTracker(session_id=session_id, on_record=persistence.cost if persistence else None)
         self.events = queue.Queue()
         self.stop_event = threading.Event()
         self.cancel_event = threading.Event()
@@ -110,6 +112,11 @@ class BrowserAudioSession:
             with self.lock:
                 self.completed_checkpoint = max(self.completed_checkpoint, report["checkpoint"])
             self.events.put(("report", report))
+            if self.persistence is not None:
+                try:
+                    self.persistence.report(report)
+                except OSError:
+                    self.events.put(("error", {"kind": "local_storage"}))
 
     def _new_client(self):
         def on_error(message):
@@ -134,6 +141,8 @@ class BrowserAudioSession:
         recovered = False
         try:
             while not self.cancel_event.is_set():
+                if self.input_finished.is_set() and self.persistence is not None and not self.audio_archived:
+                    self._archive_audio()
                 if self.input_finished.is_set() and final_deadline is None:
                     final_deadline = time.monotonic() + 90
                 if final_deadline is not None and time.monotonic() >= final_deadline:
@@ -226,7 +235,20 @@ class BrowserAudioSession:
         finally:
             if client is not None:
                 client.close()
+            if self.persistence is not None:
+                try:
+                    if self.input_finished.is_set() and not self.audio_archived:
+                        self._archive_audio()
+                    self.persistence.finish(cancelled=self.cancel_event.is_set(),
+                                            interrupted=not self.input_finished.is_set())
+                except OSError:
+                    self.events.put(("error", {"kind": "local_storage"}))
             with self.lock:
                 self.audio.close()
             self.events.put(("analysis", False))
             self.events.put(("finished", None))
+
+    def _archive_audio(self):
+        with self.lock:
+            self.persistence.archive_pcm(self.audio, self.byte_count)
+        self.audio_archived = True

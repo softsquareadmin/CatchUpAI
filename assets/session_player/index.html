@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="player.css">
+</head>
+<body>
+  <div class="player" role="group" aria-label="Session audio playback">
+    <button id="play" type="button" aria-label="Play session audio" disabled>
+      <svg id="play-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      <svg id="pause-icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>
+    </button>
+    <div class="timeline">
+      <input id="seek" type="range" min="0" max="1" step="0.1" value="0" aria-label="Seek session audio" disabled>
+      <div class="times"><span id="position">00:00</span><span id="duration">00:00</span></div>
+    </div>
+  </div>
+  <p id="error" role="status" hidden></p>
+  <audio id="audio" preload="metadata"></audio>
+  <script src="player.js"></script>
+</body>
+</html>

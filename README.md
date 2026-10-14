@@ -2,6 +2,92 @@
 
 ### Your AI second listener.
 
+## Supabase persistence
+
+Set `SUPABASE_URL` to the project URL and `SUPABASE_SECRET_KEY` to the server-side
+secret in `.env`. Legacy `SUPABASE_SERVICE_ROLE_KEY` is also supported. Credentials
+never go to the browser. This implementation uses the REST and Storage APIs through
+Python's standard library, so no additional SDK dependency is required.
+
+Before using persistence, run these files in order in the project's SQL Editor:
+
+1. `supabase/migrations/202610140001_audio_persistence.sql`
+2. `supabase/migrations/202610140002_session_costs.sql`
+
+The REST secret key cannot create SQL tables. The migration creates `configurations`,
+`audio_sessions`, `session_reports` and the private `session-audio` bucket. The second
+migration adds `session_costs`, linked to `audio_sessions`. Their RLS
+and grants restrict access to the trusted server; this is a shared private deployment,
+not a multiuser account-isolation implementation. Restrict access to the app itself.
+
+After applying SQL, check setup and import existing configurations with:
+
+```powershell
+python scripts/supabase_setup.py --import-configurations
+```
+
+Imports preserve IDs, skip existing IDs, and leave local files intact. Run without
+the flag to check setup only. With credentials configured, configuration operations
+use Supabase and never silently fall back to local files on connection failure.
+Without credentials, or with `SUPABASE_ENABLED=false`, local configuration storage
+remains available for development and offline tests.
+
+Deleting a configuration updates only `deleted_at`. Deleted configurations disappear
+from selection/load/edit operations, but their rows and existing session links remain.
+Names remain reserved. Saving changes uses the loaded revision to detect conflicting
+edits. Every audio session freezes its own configuration for historical report display.
+
+Live browser recordings retain each validated intermediate report and the final report.
+After all stopped-recording audio is received, the server creates one complete WAV and
+uploads it to `<session-id>/audio.wav`; no capture chunks are stored in Supabase.
+Uploaded recordings retain the original whole file and their final report. Audio is
+archived independently of final-analysis success. **Recent Sessions** in the sidebar
+opens an archived recording directly in **Conversation Studio**. A playback card shows
+the session name, configuration and complete audio instead of capture controls. Moving
+to **Cost Estimation** keeps that recording and its saved costs selected. **New Session**
+returns to Studio with the normal recorder/uploader, also shown on the cost tab.
+Each session's three-dot menu shows **Rename**, which opens a styled dialog to edit its name.
+
+The `.persistence/` directory is a local retry outbox containing sensitive accepted
+reports and whole audio files until Supabase acknowledges their writes. It is excluded
+from Git and replayed when the app restarts. Keep it on a persistent, access-restricted
+disk. Successful sessions remove their outbox files. A failed task retries while the
+app runs; reports can still save while an audio upload is failing. Whole-file uploads retry at the same object
+path. Large recordings are subject to the project's global Storage file-size limit;
+raise that limit if needed. Transport failures retry the whole file.
+
+An in-progress live recording is not yet archived in Supabase. Browser recovery remains
+available, but process loss before whole-file assembly does not guarantee automatic
+server recovery. The optional microphone CLI currently retains its previous local
+behavior; Supabase session/audio persistence is wired into browser live capture and
+the uploaded-recording UI.
+
+The design is documented in `docs/supabase-architecture.md`. Remote database/storage
+verification requires applying the SQL migration first.
+
+Each `session_costs` row records either an individual terminal API response or a
+missing-usage event for its audio session. Response rows preserve raw usage, queryable
+token counts, analysis/checkpoint metadata, cost breakdown, model, response status,
+USD estimate and the exact pricing rates/date used. Failed responses, validation retries
+and mini repair calls are included; repeated response IDs cannot add duplicate charges.
+Connection diagnostics and cumulative log summaries are not billable rows. Unknown
+costs remain NULL and usage gaps mark totals as partial. Reasoning remains part of
+output usage and is not added again. Costs use the same durable outbox as reports;
+late repair usage can still be stored after the recording ends.
+
+Select a **Recent Session**, then open **Cost Estimation** for its saved dashboard and CSV download.
+The cost migration includes example SQL for session details and aggregated totals.
+Only newly captured events are saved automatically; older sessions have no historical
+costs unless their existing usage logs are explicitly backfilled with reliable session
+mapping. Standalone document topic extraction is not attached to an audio session and
+keeps its existing local usage logging.
+
+Run offline tests with `python scripts/run_offline_tests.py` (use the project's
+`.venv/Scripts/python.exe` on Windows). This explicitly disables Supabase even when
+credentials are present. Local PostgreSQL migration checks are available through
+`python scripts/verify_sql_migration.py`; the transactional assertions are also in
+`supabase/tests/persistence.sql` for execution after the migration.
+
 ## Configuration templates
 
 On the Configurations page, enter a template name and choose **Save template** to
@@ -72,8 +158,9 @@ start with empty editors. **Save changes** is enabled only after editing the
 loaded configuration or its name. Validation messages appear beside the relevant
 configuration fields and below the template save controls.
 
-Templates are stored as JSON files in `configuration_templates/` and remain
-available after restarting the app. Template names must be unique.
+With Supabase configured, templates are stored in its `configurations` table and remain
+available after restarting the app. Local development uses JSON files in
+`configuration_templates/`. Template names must be unique, including soft-deleted names.
 
 Under **Topics to cover**, choose **Upload** to import topics from a PDF, Word,
 text, Markdown, RTF or ODT document (up to 20 MB). Set the purpose first; only
@@ -156,7 +243,7 @@ Prices in `catchupai/usage.py` were checked on 2026-10-12 and need updating when
 OpenAI changes them. Calculated costs exclude taxes, credits, account discounts,
 hosting, and currency conversion; reconcile against OpenAI billing for the final
 charge. Run the offline checks with
-`python -m unittest discover -s tests -p "test_*.py"`.
+`python scripts/run_offline_tests.py`.
 
 It identifies important points, unanswered questions, action items, key details, and useful suggestions — so you can stay focused on the conversation instead of worrying about remembering everything.
 

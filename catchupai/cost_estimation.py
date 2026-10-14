@@ -268,7 +268,7 @@ def render_cost_estimation(snapshot=None, *, active=False, uploaded=False, sourc
                     selected_summary = next(group["summary"] for group in groups if group["key"] == selected)
         st.markdown(_breakdown_html(selected_summary), unsafe_allow_html=True)
         st.caption("Text instructions include all input text context. Cached tokens are charged separately from regular input. Reasoning is counted once in the total.")
-    dates = sorted({record.get("pricing_date", PRICE_DATE) for record in records})
+    dates = sorted({record.get("pricing_date") or "unavailable" for record in records})
     models = sorted({record["model"] for record in records})
     st.markdown(f'<div class="cost-footnote">Estimates in USD · {escape(", ".join(models))} · '
                 f'Rates dated {escape(", ".join(dates))} · <a href="{PRICE_SOURCE}" target="_blank" rel="noopener noreferrer">Pricing reference</a>'

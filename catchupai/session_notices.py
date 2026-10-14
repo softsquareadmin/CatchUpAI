@@ -21,7 +21,7 @@ def session_notice(detail, *, kind=None, metadata=None):
             kind = "timeout"
         else:
             kind = "analysis"
-    if kind not in ("report", "credentials", "quota", "connection", "timeout", "analysis"):
+    if kind not in ("report", "credentials", "quota", "connection", "timeout", "analysis", "persistence", "local_storage"):
         kind = "analysis"
     checkpoint = (metadata or {}).get("checkpoint")
     return {"kind": kind, "checkpoint": checkpoint if type(checkpoint) is int and checkpoint >= 0 else None,
@@ -31,6 +31,10 @@ def session_notice(detail, *, kind=None, metadata=None):
 def notice_text(notice, *, recording=False, has_report=False, uploaded=False):
     notice = session_notice(notice)
     kind = notice["kind"]
+    if kind == "persistence":
+        return "Saving is delayed. Your session is retained locally and will retry automatically."
+    if kind == "local_storage":
+        return "Could not retain session data locally. Check disk space and keep a copy of your recording."
     if kind == "credentials":
         return "Analysis couldn't connect. Check your OpenAI API key."
     if kind == "quota":

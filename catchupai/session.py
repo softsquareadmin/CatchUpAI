@@ -178,12 +178,15 @@ def _run_audio_session(config, stop_event, on_report, on_error, status, on_analy
 class LiveSession:
     """Streamlit reruns retain this worker; workers never access Streamlit state."""
 
-    def __init__(self, config, recording_bytes=None):
+    def __init__(self, config, recording_bytes=None, persistence=None, source_name=None):
         validate_config(config)
         self.config = copy.deepcopy(config)
+        self.persistence = persistence
+        self.source_name = source_name or "audio.wav"
         self.recording_bytes = recording_bytes
         self.is_upload = recording_bytes is not None
-        self.usage_tracker = UsageTracker()
+        self.usage_tracker = UsageTracker(session_id=persistence.session_id if persistence else None,
+                                          on_record=persistence.cost if persistence else None)
         self.events = queue.Queue()
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self._run, daemon=True)
@@ -201,9 +204,18 @@ class LiveSession:
     def _report(self, result):
         if not (self.is_upload and self.stop_event.is_set()):
             self.events.put(("report", result))
+            if self.persistence is not None:
+                try:
+                    self.persistence.report(result)
+                except OSError:
+                    self.events.put(("error", {"kind": "local_storage"}))
 
     def _run(self):
         try:
+            if self.persistence is not None and self.recording_bytes is not None:
+                from .recording import recording_info
+                self.persistence.archive_upload(self.recording_bytes, self.source_name,
+                                                recording_info(self.recording_bytes).duration)
             runner = main
             extra = {}
             if self.recording_bytes is not None:
@@ -223,6 +235,11 @@ class LiveSession:
         except Exception as error:
             self.events.put(("error", str(error)))
         finally:
+            if self.persistence is not None:
+                try:
+                    self.persistence.finish(cancelled=self.is_upload and self.stop_event.is_set())
+                except OSError:
+                    self.events.put(("error", {"kind": "local_storage"}))
             self.recording_bytes = None
             self.events.put(("finished", None))
 

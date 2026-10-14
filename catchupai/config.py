@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/").removesuffix("/rest/v1")
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_ENABLED = os.getenv("SUPABASE_ENABLED", "true").lower() not in ("false", "0", "no")
 TOPIC_EXTRACTION_MODEL = os.getenv("TOPIC_EXTRACTION_MODEL", "gpt-5.4-mini")
 REPORT_REPAIR_MODEL = os.getenv("REPORT_REPAIR_MODEL", "gpt-5.4-mini")
 REPORT_REPAIR_ENABLED = os.getenv("REPORT_REPAIR_ENABLED", "true").lower() not in ("false", "0", "no")

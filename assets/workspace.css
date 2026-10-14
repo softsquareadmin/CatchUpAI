@@ -1,4 +1,44 @@
 :root { --ink:#0a1637; --muted:#737e98; --blue:#0069ff; --line:#d5dfeb; }
+/* Recent session navigation keeps the workspace tabs and selected recording separate. */
+[data-testid="stSidebar"] .st-key-sidebar_sessions { margin:12px 10px 0; width:calc(100% - 20px); }
+[data-testid="stSidebar"] .st-key-new_session [data-testid="stButton"] { width:100%; }
+[data-testid="stSidebar"] .st-key-new_session button[kind="secondary"] { min-height:36px; border:0; border-radius:8px; padding:0 10px; gap:10px; background:#e3efff; color:#087bff; }
+.recent-sessions-heading { margin:12px 0 10px; padding:14px 4px 0; border-top:1px solid #dbe6fa; color:#6c7fa7; font-size:12px; line-height:18px; font-weight:600; }
+[data-testid="stSidebar"] [data-testid="stElementContainer"]:has(.recent-sessions-heading) { min-height:62px; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list { max-height:calc(100dvh - 340px); min-height:0; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#c3d3ed transparent; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list [class*="st-key-recent_session_"] { margin-bottom:7px; border-radius:7px; background:#edf3fb; overflow:hidden; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list [data-testid="stHorizontalBlock"] { gap:0; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list [data-testid="stButton"] { width:100%; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list button[kind] { border:0; border-radius:0; min-height:36px; height:36px; padding:0 8px; gap:8px; background:transparent; color:#263d67; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list button[kind="primary"] { color:#0069ff; background:#dceaff; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list button:hover { background:#e0ebfc; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list button p { font-size:11px; line-height:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list [data-testid="stIconMaterial"] { font-size:18px; flex-shrink:0; }
+[data-testid="stSidebar"] .st-key-recent_sessions_list [data-testid="stMenuButtonButton"] { width:100%; padding:0; justify-content:center; color:#7189b0; }
+[data-testid="stMenuButtonBody"]:has([role="menuitem"]) { min-width:130px; border:1px solid #dbe6fa; border-radius:8px; background:#fff; box-shadow:0 8px 24px #142b4b24; }
+[data-testid="stDialog"]:has(.st-key-rename_session_dialog) > div { width:480px!important; }
+.st-key-rename_session_dialog { padding:6px 0; }
+.st-key-rename_session_dialog > [data-testid="stVerticalBlock"] { gap:16px; }
+.st-key-rename_session_footer { margin-top:12px; }
+.st-key-save_session_rename button,
+.st-key-save_session_rename button p { color:#fff!important; }
+/* Archived audio replaces capture controls on both Studio and Cost Estimation. */
+.st-key-saved_audio_card { padding:16px 20px 8px; background:#fff; border:1px solid #dbe6fa; border-radius:18px; box-shadow:0 5px 12px #142b4b24; }
+.st-key-saved_audio_card > [data-testid="stVerticalBlock"] { gap:12px; }
+.st-key-saved_audio_heading { min-height:54px; flex-shrink:0; }
+.saved-session-heading { display:flex; align-items:center; gap:12px; min-height:38px; margin-bottom:2px; }
+.saved-session-heading .icon-tile { width:38px; height:38px; flex-shrink:0; border-radius:7px; }
+.saved-session-heading .icon-tile svg { width:24px; height:24px; }
+.saved-session-heading h2 { padding:0; margin:0; font-size:18px; line-height:26px; font-weight:700; overflow-wrap:anywhere; }
+.saved-configuration { margin-left:auto; display:flex; align-items:center; gap:20px; padding-left:20px; text-align:right; }
+.saved-configuration span { color:#6980af; font-size:12px; line-height:18px; white-space:nowrap; }
+.saved-configuration strong { color:var(--ink); font-size:14px; line-height:20px; }
+.st-key-saved_audio_card iframe { display:block; }
+@media(max-width:640px) {
+  .saved-session-heading { flex-wrap:wrap; }
+  .saved-configuration { width:100%; margin:0; padding:0; justify-content:space-between; text-align:left; gap:12px; }
+  .st-key-saved_audio_card { padding:14px 14px 8px; }
+}
 /* Native notifications float above the workspace and retain their close button. */
 [data-testid="stToastContainer"] { top:76px!important; right:20px!important; bottom:auto!important; margin:0!important; max-width:calc(100vw - 32px); }
 [data-testid="stToast"] { box-sizing:border-box; width:400px; max-width:calc(100vw - 32px); margin-top:10px; padding:16px 18px; border:1px solid #dbe6fa; border-radius:14px; background:#fff; color:var(--ink); filter:none; box-shadow:0 8px 24px #142b4b24; }
