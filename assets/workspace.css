@@ -186,7 +186,9 @@
 .stApp p, .stApp h1, .stApp h2, .stApp h3 { font-family:Arial,Helvetica,sans-serif; }
 /* Remove heading permalink controls so they cannot trigger anchor scrolling. */
 .stApp [data-testid="stHeaderActionElements"] a { display:none!important; }
-[data-testid="stElementContainer"]:has(.top-brand) { height:0; margin-top:-20px; }
+/* Stale-element opacity creates a stacking context behind the fixed header.
+   Keep branding opaque during reruns so its fixed children remain above it. */
+[data-testid="stElementContainer"]:has(.top-brand) { height:0; margin-top:-20px; opacity:1!important; }
 [data-testid="stHeader"] { height:62px; min-height:62px; box-sizing:border-box; background:#fff; border-bottom:1px solid var(--line); }
 .top-brand { position:fixed; top:17px; left:30px; display:flex; align-items:center; gap:12px; color:var(--ink); font-size:22px; font-weight:700; line-height:28px; pointer-events:none; }
 .top-brand svg { width:23px; height:25px; flex-shrink:0; }
